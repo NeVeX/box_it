@@ -1,0 +1,2368 @@
+/**
+ *
+ *
+ * @ aMarXproduction partnered with Mickey's Mickeys Inc.
+ *
+ *
+ *
+ * presents The NeVeX Experience
+ *      powered by Chain Hunter
+ *
+ *
+ *
+ */
+
+
+
+
+// things i might need to do. if your reading this mick, hello joe.
+//  the switching of play when i go second. rethink strategy.
+//  what happens when someone doesn't take your switch of play box.'
+//  also what if they are trying to switch the play.
+//  try and see if you can figure out when to try and switch play. this could mean
+//  forcing the other player to give awway someting. 
+//  this may involve using the chain numbers to come to a conclusion
+
+import java.awt.event.*;
+import java.rmi.RemoteException;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import java.io.File;
+import java.lang.*;
+
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.DataLine;
+
+
+public class NeVeX extends View implements Player {
+   private Object lock = new Object();
+   private Edge edge;
+   boolean never_search_neutral_again = false;
+   //int temp_col = 0, temp_row = 0, temp_edge = 0;
+   int seed = 347, my_limit, edges_left = 0;
+   boolean player_first = true, search_initial = true;
+   /*Chain Hunter Stuff, don't touch Mark*/
+   int chainAmount, edgeAmount, boxCount, chainCounter, boxCounter, nextChain, nextBox,
+       pchainAmount, pboxCount, pchainCounter, pboxCounter, limit, is_it_potential;
+   boolean  validCoord = false, loopChain = false, noParameters = false;;
+   Edge chainData[][], pchainData[][], loopChainData, coordinates;
+   int total_original_edges = 0;
+   int my_score = 0, his_score = 0;
+   boolean should_flip = true, pick_it = false;
+
+   
+   void setGo(Boolean go) {
+       try{
+           String info = "";
+           String info2 = "";
+           if ( player_first == true ) {
+               info = "The NeVeX Engine Is Computing....   I AM PINK ";
+               info2 = "                                   I AM PINK ";
+           }
+           else {
+               info = "The NeVeX Engine Is Computing....  I AM GREEN  ";
+               info2 = "                                  I AM GREEN ";
+           }
+           
+           if(go)
+               status = info;
+           else
+               status = info2;
+           int scores[] = viewBoard.getScore();
+           score = "Player 1: "+scores[0]+"    Player 2: "+scores[1];
+       }
+       catch (RemoteException ex) {
+           ex.printStackTrace();
+       }
+       repaint();
+   }
+
+public void setBoard(RmtBoard b) throws RemoteException {
+       showBoard(b);
+       JFrame frame = new JFrame();
+       frame.setTitle("The NeVeX Experience");
+       frame.add(this);
+       frame.pack();
+       frame.setVisible(true);
+       
+       // the sound for selecting edges courtesy of NeVeX Computing
+       /*
+         try{
+               AudioInputStream stream = AudioSystem.getAudioInputStream(new
+        File("c:\\test1.wav"));
+               AudioFormat format = stream.getFormat();
+               DataLine.Info info = new DataLine.Info(Clip.class, stream.getFormat());
+               Clip clip = (Clip) AudioSystem.getLine(info);
+               clip.open(stream);
+               clip.start();
+       } catch (Exception e)
+       {
+               e.printStackTrace();
+       }*/
+       
+       
+
+   }
+
+public void update() throws RemoteException {
+           this.update(null, null);
+   }
+
+public Edge pickEdge() throws RemoteException {
+       Edge tempEdge = null;
+       setGo(true);
+
+       while(tempEdge == null) {
+                 tempEdge = NeVeX_Computing();
+       }
+
+       setGo(false);
+       
+       return tempEdge;
+}
+
+private Edge NeVeX_Computing() throws RemoteException {
+   
+    /*
+     *
+     *             |
+     *             |            \                  /          \  
+     *             |             \                /            \          
+     *             |      ______  \              /       ______ \          TM 
+     *      |      |    |          \            /    |           \      /  
+     *      |\     |    |           \          /     |            \    /
+     *      | \    |    |            \        /      |             \  /
+     *      |  \   |    |----         \      /       |----          \/
+     *      |   \  |    |              \    /        |              /\
+     *      |    \ |    |               \  /         |             /  \
+     *      |     \|    |_______         \/          |_______     /    \
+     *      |                                                           \
+     *      |            _  _        _      |-        _                  \  
+     *      |           |_ |_| |\/| |_| |_| |_ | |\| |_|                  \
+     *      |                       |             _____|                   \
+     *
+     *
+     *
+     */ 
+           
+           
+           
+           
+           huntChains(0,0); 
+           Edge tempEdge = null;
+           int i;
+           int my_col,my_row;
+           int box_edges, above_box_edges, below_box_edges,
+            left_box_edges, right_box_edges;
+           int neutral_edge_row = 0, neutral_edge_col = 0, neutral_edge = 0;
+           int start_col, start_row;
+           int rand_col = 0, rand_row = 0, rand_edge = 0;
+           int search_loop;
+           int start_edge = 0;
+           int chain_length[] = new int[chainAmount*2];
+           int p_chain_length[] = new int[pchainAmount*2];
+           int four_box[][] = new int [row*column][8];
+           int smallest_potential = 0, potential_chain_use = 0, temp_smallest = 0;
+           int smallest_chain = 0, temp_smallest_chain = 0, chain_use = 0;
+           int smallest_chain_now, smallest_potential_chain_now;
+           int p_length_chain = 1;
+           int p_chain_number = 0, box = 2;
+           int length_chain = 1;
+           int chain_number = 0, temp_smallest_potential = 0;
+           int temp_biggest_potential = 0;
+           int how_many_boxes = 0, how_many_empty_boxes = 0, count = 1;
+           int total_chain_boxes = 0, total_pchain_boxes = 0, how_many_overlaps = 0;
+           
+           boolean box_edge[][][] = new boolean[column][row][4]; 
+           boolean neutral_edge_exists = false;
+           boolean proceed = true;
+           boolean wrong_edge = true;
+           boolean picked = false;
+           boolean is_there_chain = false;
+           boolean is_there_potential_chain = false;
+           boolean should_double_cross = false;
+           boolean chainAmount_changed = false;
+           boolean select_vert_neg = false, select_hori_neg = false, select_vert = false, select_hori = false;
+           boolean select_vert_neg_2 = false, select_hori_neg_2 = false, select_vert_2 = false, select_hori_2 = false;
+           boolean giving_odd_away = false;   
+           boolean is_there_box = false;
+           boolean north_box = false, east_box = false, south_box = false, west_box = false;
+           boolean cannot_choose_it = false;
+
+           
+   edges_left = viewBoard.getEdgesLeft();
+    
+   if ( search_initial == true) { 
+       total_original_edges = viewBoard.getEdgesLeft();
+       for ( my_col = 0; my_col < row; my_col++) { // row first
+           for ( my_row = 0; my_row < column; my_row++) {
+               if (    (viewBoard.isSelected(my_row, my_col, 0))||
+                       (viewBoard.isSelected(my_row, my_col, 1)) ||
+                       (viewBoard.isSelected(my_row, my_col, 2)) ||
+                       (viewBoard.isSelected(my_row, my_col, 3))) {
+                   player_first = false;
+                   
+               }
+           }
+       }
+       search_initial = false;
+       
+        if ( player_first == false) {
+               //System.out.println("---------NeVeX WAS SECOND TO START---------");
+               //System.out.println("---------SECOND PLAYER IS GREEN--------");
+               //System.out.println("---------I HAVE ODD CHAINS TO START WITH AND I HATE EVEN CHAINS AND I DONT NEED TO FLIP--------");
+            }
+        else {
+           //System.out.println("---------NeVeX WAS FIRST TO START---------");
+           //System.out.println("---------FIRST PLAYER IS PINK--------");
+           //System.out.println("---------I HAVE EVEN CHAINS TO START WITH AND I HATE EVEN CHAINS AND I NEED TO FLIP--------");
+        }
+   }
+
+   ////System.out.println("-----------------Edges Left On Board is "+edges_left);
+
+   
+
+       // THE NEUTRAL EDGE CASE:
+
+          start_col = (seed * (int) (Math.random()*seed)) % row;
+          start_row = (seed * (int) (Math.random()*seed)) % column;
+
+   if ( never_search_neutral_again == false ) {
+      loop_edge_search: for (search_loop =0; search_loop < 2; search_loop++) {
+          for ( my_col = start_col; my_col < row; my_col++) { // row first
+               for ( my_row = start_row; my_row < column; my_row++) {
+
+                   box_edges=0; above_box_edges=0; below_box_edges=0;
+                    left_box_edges=0; right_box_edges=0;
+
+                   if (!viewBoard.isSelected(my_row, my_col, 0)) {
+                       //////System.out.println("this box has north edge not selected");
+                       box_edges++;
+                   }
+                   if (!viewBoard.isSelected(my_row, my_col, 1)) {
+                        //////System.out.println("this box has EAST edge not selected");
+                       //box_edge[my_row][my_col][1] = false;
+                       box_edges++;
+                   }
+                   if (!viewBoard.isSelected(my_row, my_col, 2)) {
+                        //////System.out.println("this box has SOUTH edge not selected");
+                       //box_edge[my_row][my_col][2] = false;
+                       box_edges++;
+                   }
+                   if (!viewBoard.isSelected(my_row, my_col, 3)) {
+                        //////System.out.println("this box has WEST edge not selected");
+                       //box_edge[my_row][my_col][3] = false;
+                       box_edges++;
+                   }
+
+
+                   if (box_edges >= 3) {  // box is good, but check neighbouring boxes
+
+                       if (my_col > 0) { // top of box
+                           if ((viewBoard.isSelected(my_row, my_col,0))) { // obviously need to check
+                                   above_box_edges = 0;
+                           }
+                           else {
+                               if (!viewBoard.isSelected(my_row,my_col-1, 0)) {
+                                   above_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row,my_col-1, 1)) {
+                                   above_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row,my_col-1, 2)) {
+                                   above_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row,my_col-1, 3)) {
+                                   above_box_edges++;
+                               }
+                           }
+                       }
+                       if (my_row < column - 1) { // east side of board
+                           if ((viewBoard.isSelected(my_row, my_col,1))) { // obviously need to check
+                                   right_box_edges = 0;
+                           }
+                           else {
+                               if (!viewBoard.isSelected(my_row+1,my_col, 0)) {
+                                   right_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row+1,my_col, 1)) {
+                                   right_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row+1,my_col, 2)) {
+                                   right_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row+1,my_col, 3)) {
+                                   right_box_edges++;
+                               }
+                          }
+                       }
+
+                       if (my_col < row - 1) { // very bottom of board
+                           if ((viewBoard.isSelected(my_row, my_col,2))) { // obviously need to check
+                                   below_box_edges = 0;
+                           }
+                           else {
+                               if (!viewBoard.isSelected(my_row,my_col+1, 0)) {
+                                   below_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row,my_col+1, 1)) {
+                                   below_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row,my_col+1, 2)) {
+                                   below_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row,my_col+1, 3)) {
+                                   below_box_edges++;
+                               }
+                           }
+                       }
+
+                       if (my_row > 0) { // west side
+                           if ((viewBoard.isSelected(my_row, my_col,3))) { // obviously need to check
+                                   left_box_edges = 0;
+                           }
+                           else {
+                               if (!viewBoard.isSelected(my_row-1,my_col, 0)) {
+                                   left_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row-1,my_col, 1)) {
+                                   left_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row-1,my_col, 2)) {
+                                   left_box_edges++;
+                               }
+                               if (!viewBoard.isSelected(my_row-1,my_col, 3)) {
+                                   left_box_edges++;
+                               }
+                           }
+                       }
+                   }
+                       if ( above_box_edges >= 3 || (box_edges >= 3&& my_col == 0 && (!viewBoard.isSelected(my_row, my_col, 0)))) {
+                            //north edge can be selected
+                           neutral_edge_row = my_row;
+                           neutral_edge_col = my_col;
+                           neutral_edge = 0;
+                           neutral_edge_exists = true;
+                           break loop_edge_search;
+                       }
+                       else if ( right_box_edges >= 3 || (box_edges>= 3 && my_row == (column-1) && (!viewBoard.isSelected(my_row, my_col,1)))) {  //right edge can be selected
+                           neutral_edge_row = my_row;
+                           neutral_edge_col = my_col;
+                           neutral_edge = 1;
+                           neutral_edge_exists = true;
+                       break loop_edge_search;
+                       }
+                       else if ( below_box_edges >= 3 || (box_edges>= 3 && my_col == (row-1) && (!viewBoard.isSelected(my_row, my_col,2)))) {  //bottom edge can be selected
+                           neutral_edge_row = my_row;
+                           neutral_edge_col = my_col;
+                           neutral_edge = 2;
+                           neutral_edge_exists = true;
+                       break loop_edge_search;
+                       }
+                       else if ( left_box_edges >= 3 || (box_edges >=3 && my_row == 0 && (!viewBoard.isSelected(my_row, my_col, 3)))) {//left edge can be selected
+                           neutral_edge_row = my_row;
+                           neutral_edge_col = my_col;
+                           neutral_edge = 3;
+                           neutral_edge_exists = true;
+                       break loop_edge_search;
+                       }
+
+
+                       //////System.out.println("row = "+my_row+ " andcol is "+my_col);
+               }
+          }
+
+          // if random edge search didnt work restart loop with original values
+         // ////System.out.println("--------RANDOM DIDN'T WORK -------");
+          start_col = 0;
+          start_row = 0;
+      }
+   }
+          
+          
+  // neutral edge is either found or doesn't exist be this stage
+    if ( !neutral_edge_exists ) {
+        this.never_search_neutral_again = true;
+       }
+         
+   if (this.never_search_neutral_again == true) {
+           // ////System.out.println("--------------------THERE ARE NO MORE NEUTRAL EDGES ---------------- = ");  
+   }
+
+          // searching for boxes 
+  // int four_box_number = 0;
+   box_search: for ( my_row = 0; my_row < row; my_row++) { // row first
+            for ( my_col = 0; my_col < column; my_col++) {
+                if ( my_row == row - 1 || my_col == column - 1) {
+                 }
+                else if ( viewBoard.isSelected(my_col, my_row, 0) && viewBoard.isSelected(my_col, my_row, 3) &&
+                        viewBoard.isSelected(my_col+1, my_row, 0) && viewBoard.isSelected(my_col+1, my_row, 1) &&
+                         viewBoard.isSelected(my_col+1, my_row+1, 1) && viewBoard.isSelected(my_col+1, my_row+1, 2) &&
+                          viewBoard.isSelected(my_col, my_row+1, 2) && viewBoard.isSelected(my_col, my_row+1, 3) &&
+                            !viewBoard.isSelected(my_col, my_row, 1) && !viewBoard.isSelected(my_col, my_row, 2) &&
+                             !viewBoard.isSelected(my_col+1, my_row+1, 0) && !viewBoard.isSelected(my_col+1, my_row+1, 3)) {
+                    how_many_empty_boxes++;
+                }
+            }   
+   }
+          
+   box_search: for ( my_row = 0; my_row < row; my_row++) { // row first
+            for ( my_col = 0; my_col < column; my_col++) {
+                if ( my_row == row - 1 || my_col == column - 1) {
+                 }
+                else if ( viewBoard.isSelected(my_col, my_row, 0) && viewBoard.isSelected(my_col, my_row, 3) &&
+                        viewBoard.isSelected(my_col+1, my_row, 0) && viewBoard.isSelected(my_col+1, my_row, 1) &&
+                         viewBoard.isSelected(my_col+1, my_row+1, 1) && viewBoard.isSelected(my_col+1, my_row+1, 2) &&
+                          viewBoard.isSelected(my_col, my_row+1, 2) && viewBoard.isSelected(my_col, my_row+1, 3) &&
+                            viewBoard.isSelected(my_col, my_row, 1) && !viewBoard.isSelected(my_col, my_row, 2) &&
+                             !viewBoard.isSelected(my_col+1, my_row+1, 0) && !viewBoard.isSelected(my_col+1, my_row+1, 3)) {
+                    
+                    four_box[0][0] = my_col;
+                    four_box[0][1] = my_row;
+                    north_box = true;
+                    is_there_box = true;
+                    //four_box_number++;
+                    //////System.out.println("---------------- I have found a box with NORTH selected and address "+my_col+","+my_row);
+                    break box_search;
+                    
+                }
+                else if ( viewBoard.isSelected(my_col, my_row, 0) && viewBoard.isSelected(my_col, my_row, 3) &&
+                        viewBoard.isSelected(my_col+1, my_row, 0) && viewBoard.isSelected(my_col+1, my_row, 1) &&
+                         viewBoard.isSelected(my_col+1, my_row+1, 1) && viewBoard.isSelected(my_col+1, my_row+1, 2) &&
+                          viewBoard.isSelected(my_col, my_row+1, 2) && viewBoard.isSelected(my_col, my_row+1, 3) &&
+                            !viewBoard.isSelected(my_col, my_row, 1) && !viewBoard.isSelected(my_col, my_row, 2) &&
+                             viewBoard.isSelected(my_col+1, my_row+1, 0) && !viewBoard.isSelected(my_col+1, my_row+1, 3)) {
+                    east_box = true;
+                    is_there_box = true;
+                    four_box[0][0] = my_col;
+                    four_box[0][1] = my_row;
+                    //four_box_number++;
+                    //////System.out.println("---------------- I have found a box with EAST selected and address "+my_col+","+my_row);
+                    break box_search;
+                
+                }
+                else if ( viewBoard.isSelected(my_col, my_row, 0) && viewBoard.isSelected(my_col, my_row, 3) &&
+                        viewBoard.isSelected(my_col+1, my_row, 0) && viewBoard.isSelected(my_col+1, my_row, 1) &&
+                         viewBoard.isSelected(my_col+1, my_row+1, 1) && viewBoard.isSelected(my_col+1, my_row+1, 2) &&
+                          viewBoard.isSelected(my_col, my_row+1, 2) && viewBoard.isSelected(my_col, my_row+1, 3) &&
+                            !viewBoard.isSelected(my_col, my_row, 1) && viewBoard.isSelected(my_col, my_row, 2) &&
+                             !viewBoard.isSelected(my_col+1, my_row+1, 0) && !viewBoard.isSelected(my_col+1, my_row+1, 3)) {
+                    west_box = true;
+                    is_there_box = true;
+                    four_box[0][0] = my_col;
+                    four_box[0][1] = my_row;
+                    //four_box_number++;
+                    //////System.out.println("---------------- I have found a box with WEST selected and address "+my_col+","+my_row);
+                    break box_search;
+                
+                }
+                else if ( viewBoard.isSelected(my_col, my_row, 0) && viewBoard.isSelected(my_col, my_row, 3) &&
+                        viewBoard.isSelected(my_col+1, my_row, 0) && viewBoard.isSelected(my_col+1, my_row, 1) &&
+                         viewBoard.isSelected(my_col+1, my_row+1, 1) && viewBoard.isSelected(my_col+1, my_row+1, 2) &&
+                          viewBoard.isSelected(my_col, my_row+1, 2) && viewBoard.isSelected(my_col, my_row+1, 3) &&
+                            !viewBoard.isSelected(my_col, my_row, 1) && !viewBoard.isSelected(my_col, my_row, 2) &&
+                             !viewBoard.isSelected(my_col+1, my_row+1, 0) && viewBoard.isSelected(my_col+1, my_row+1, 3)) {
+                    south_box = true;
+                    is_there_box = true;
+                    four_box[0][0] = my_col;
+                    four_box[0][1] = my_row;
+                    //four_box_number++;
+                    //////System.out.println("---------------- I have found a box with SOUTH selected and address "+my_col+","+my_row);
+                    break box_search;
+                
+                }
+
+            }
+        }
+   
+   if (chainAmount > 0) {  // get the length of the chains
+       is_there_chain = true;
+       box = 2;
+
+       
+       for (chain_number = 1; chain_number <= chainAmount; chain_number++ ) {
+           while( chainData[chain_number][box].getCol() <= limit ) {
+               length_chain++;
+               box++;
+           }
+           chain_length[chain_number] = length_chain; 
+           box = 2;
+           length_chain = 1;
+       }
+       temp_smallest_chain = chain_length[1];
+       chain_use = 1;
+
+       for ( i = 2; i <= chainAmount; i++) {
+        smallest_chain = chain_length[i];
+          if(smallest_chain < temp_smallest_chain) {
+             chain_use = i;
+             temp_smallest_chain = smallest_chain;
+             //////System.out.println("chain "+(i)+" has length "+chain_length[i]+" and is smaller than chain "+(i-1)+" with length "+chain_length[i-1]);
+          }
+       }
+   
+   }
+   if (pchainAmount > 0) {  // get the length of the potential chains
+       is_there_potential_chain = true;
+       box = 2;
+       
+       for (p_chain_number = 1; p_chain_number <= pchainAmount; p_chain_number++ ) {
+           while( pchainData[p_chain_number][box].getCol() <= limit ) {
+               p_length_chain++;
+               box++;
+           }
+           p_chain_length[p_chain_number] = p_length_chain; 
+           p_length_chain = 1;
+           box = 2;
+       }
+       
+       temp_smallest_potential = p_chain_length[1]; // first p.chain
+       temp_biggest_potential = p_chain_length[1];
+       potential_chain_use = 1;
+
+       for( i = 2; i <= pchainAmount; i++) {
+        smallest_potential = p_chain_length[i];
+         if (smallest_potential < temp_smallest_potential) {
+            potential_chain_use = i;
+            temp_smallest_potential = smallest_potential;
+            //////System.out.println("pot chain "+(i)+" has length "+p_chain_length[i]+" and is smaller than pot chain "+(i-1)+" with length "+p_chain_length[i-1]);  
+         }
+         else if (smallest_potential > temp_biggest_potential ) {
+             temp_biggest_potential = smallest_potential;
+         }
+       }
+   }
+   
+   if ( neutral_edge_exists ) {
+       if ( edges_left % 2 == 0 ) {
+            //System.out.println("---------I NEED TO FLIP THE GAME BUDDY--------");
+       }
+       else {
+            //System.out.println("---------I DONT NEED TO FLIP THE GAME DUDE--------");           
+       }
+   }
+   if ( this.should_flip == false ) {
+       //System.out.println("---------ACTUALLY I NOW DO NOT NEED TO FLIP THE GAME ANYMORE BUDDY!!!!!!!!! --------");
+   }
+   //System.out.println("the edges are "+edges_left);
+   if ( neutral_edge_exists ) {
+       if ( edges_left % 2 == 1 || pick_it == true) {
+           int q = 1, c = 2;
+           while ( q <= chainAmount ) {
+               if ( chain_length[q] == 1 ) {
+                 if ( pick_it == false ) {
+                     while ( c <= chainAmount ) {
+                       if ( chain_length[c] == 1) {
+                              // then select both the chains as this wont effect the game
+                               tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                               picked = true;
+                               System.out.println("debug 4a");
+                               pick_it = true;
+                       }
+                       c++;
+                     }
+                 }
+                 else if ( pick_it == true && chain_length[q] == 1 && picked == false ) {
+                   tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                   picked = true;
+                   System.out.println("debug 4b");
+                   pick_it = false;
+                 }
+               }
+               q++;
+           }
+       }
+   }
+   
+   
+   
+   
+
+   //////System.out.println("total edges is "+total_original_edges);
+   
+   if ( edges_left <= (total_original_edges * 0.9) && neutral_edge_exists && picked == false && this.should_flip == true) { // when 10 percent of the game is done, then let's play'
+       //if ( player_first == true) { // need to give away a odd chain, size of one or three
+                  if ( edges_left % 2 == 0) {
+                      if (is_there_potential_chain == true && picked == false) {
+                thisloop: for ( i = 1; i <= pchainAmount; i++) {
+                    // ////System.out.println("this loop 25");
+                              if ( p_chain_length[i] == 1 ) {
+                                  // need to check if the if the 1 chain is not really a two chain
+                                  int y = i + 1;
+                                here:  while ( y <= pchainAmount ) {
+                                      if ( p_chain_length[y] == 1 ) {
+                                          if ( (pchainData[i][1].getCol() == pchainData[y][1].getCol()+1 
+                                              || pchainData[i][1].getCol() == pchainData[y][1].getCol()-1)
+                                                && (pchainData[i][1].getRow() == pchainData[y][1].getRow()+1 
+                                              || pchainData[i][1].getRow() == pchainData[y][1].getRow()-1)) {
+                                              
+                                            // cannot pick this chain  
+                                          }
+                                          else {
+                                              // i can pick the i chain
+                                              ////System.out.println("giving ODD chain away so that i can flip the game");
+                                              tempEdge = new Edge(pchainData[i][1].getCol(),pchainData[i][1].getRow(),pchainData[i][1].getEdge());
+                                              picked = true;
+                                              System.out.println(" debug 1");
+                                              break here;
+                                          }
+                                      }
+                                      y++;
+                                  }
+                              }
+                              if ( p_chain_length[i] == 3 ) {
+                                  boolean my_turn = true;
+                                  ////System.out.println("giving ODD chain away so that i can flip the game");
+                                 if (my_turn == true && (four_box[0][0] == pchainData[i][1].getCol() && four_box[0][1] == pchainData[i][1].getRow()
+                                    || four_box[0][0] == pchainData[i][2].getCol() && four_box[0][1] == pchainData[i][2].getRow()
+                                    || four_box[0][0] == pchainData[i][3].getCol() && four_box[0][1] == pchainData[i][3].getRow() )) {
+                                      // cant use this chain as it will give away an even chain
+                                      // bug what about a chain with 3 with opposite starting points
+                                      my_turn = false;
+                                      
+                                 }
+                                 if ( pchainAmount >= 2 && my_turn == true) {
+                                      int y;
+                                      for  ( i = 1; i < pchainAmount; i++) {
+                                       for ( y = 2; y <= pchainAmount; y++) {
+                                           if ( i == y) {
+                                           }
+                                           else if (pchainData[i][2].getCol() == pchainData[y][3].getCol()
+                                               && pchainData[i][3].getCol() == pchainData[y][2].getCol()
+                                               && pchainData[i][2].getRow() == pchainData[y][3].getRow()
+                                               && pchainData[i][3].getRow() == pchainData[y][2].getRow()) {
+                                               // cant pick this either
+                                               my_turn = false;
+                                                 }
+                                       }
+                                      }
+                                 }
+                                 if ( my_turn == true && !viewBoard.isSelected(pchainData[i][1].getCol(),pchainData[i][1].getRow(),pchainData[i][1].getEdge())) {
+                                          tempEdge = new Edge(pchainData[i][1].getCol(),pchainData[i][1].getRow(),pchainData[i][1].getEdge());
+                                          picked = true;
+                                          System.out.println(" debug 2");
+                                          ////System.out.println("giving ODD chain away so that i can flip the game");
+                                          break thisloop;
+                                          }
+                              }
+                          }
+                      }
+                  }
+       //}
+/*
+       //else if ( player_first == false) {
+              if ( edges_left % 2 == 0) { // need to give away a even chain
+                   if (is_there_potential_chain == true && picked == false) {
+                thisloop: for ( i = 1; i <= pchainAmount; i++) {
+                   // ////System.out.println("this loop 20");
+                              if ( p_chain_length[i] == 2 || p_chain_length[i] == 4) {
+                                  ////System.out.println("giving EVEN chain away so that i can flip the game");
+                                      if ( !viewBoard.isSelected(pchainData[i][1].getCol(),pchainData[i][1].getRow(),pchainData[i][1].getEdge())) {
+                                        tempEdge = new Edge(pchainData[i][1].getCol(),pchainData[i][1].getRow(),pchainData[i][1].getEdge());
+                                        picked = true;
+                                        System.out.println(" debug3");
+                                        break thisloop;
+                                  }
+                                  /* // i think takes care of this 4 box potential chain thingy
+                                  else if (p_chain_length[i] == 3) {
+                                     if (four_box[0][0] == pchainData[i][1].getCol() && four_box[0][1] == pchainData[i][1].getRow()
+                                    || four_box[0][0] == pchainData[i][2].getCol() && four_box[0][1] == pchainData[i][2].getRow()
+                                    || four_box[0][0] == pchainData[i][3].getCol() && four_box[0][1] == pchainData[i][3].getRow() ) {
+                                         
+                                     }
+                                      
+                              }
+                        }   
+                   }
+              }*/
+       //}
+       
+     }
+   
+   for( i = 1; i <= chainAmount; i++ ) {
+       while( chainData[i][count].getCol() <= limit) {
+           total_chain_boxes++;
+           count++; 
+       }
+       count = 1;
+   }
+   count = 1;
+   for( i = 1; i <= pchainAmount; i++ ) {
+       while( pchainData[i][count].getCol() <= limit) {
+           total_pchain_boxes++;
+           count++;
+       }
+       count = 1;
+   }
+   count = 1;
+   ////System.out.println("the amount of chain boxes is "+total_chain_boxes);
+   ////System.out.println("the amount of pot chain boxes is "+total_pchain_boxes);   
+   
+   
+   i = 1;
+   while ( i <= pchainAmount) {
+       ////System.out.println("the pchain "+i+" has length "+p_chain_length[i]);
+       i++;
+   }
+   i = 1;
+   
+   
+   // DO I DOUBLE CROSS PEOPLE?????
+   if ( picked == false ) {
+       
+
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       int counting = 1;
+       boolean forward = true;
+       if ( chainAmount == 1 && chain_length[1] == 2 && pchainAmount >= 2 ) {
+           int t = 1;
+           while ( t <= pchainAmount ) {
+               if ( p_chain_length[t] == 1 ) {
+                   int e = t + 1;
+                   while ( e <= pchainAmount ) {
+                       if ( p_chain_length[e] == 1 ) {
+                           counting++;
+                       }
+                       e++;
+                   }
+               }
+               t++;
+           }
+           if ( counting == 2 || counting == 1) {
+              should_double_cross = false;
+              forward = false;
+           }
+           else {
+               should_double_cross = true;
+               forward = false;
+           }
+       }
+       if ( forward == true ) {
+           if( !neutral_edge_exists && is_there_chain && is_there_potential_chain && temp_smallest_potential == 1) {
+              should_double_cross = false;
+              ////System.out.println("I AM NOT DOUBLE CROSSING 1");
+           }
+           else if ( edges_left == 2 ) {
+               should_double_cross = false;
+               ////System.out.println("I AM NOT DOUBLE CROSSING 2");
+           }
+           else if (!neutral_edge_exists && is_there_chain && is_there_potential_chain) {
+               boolean is_there_overlap = false;
+               // find some overlaps
+                   for  ( i = 1; i < chainAmount; i++) {
+                     for ( int y = 2; y <= chainAmount; y++) {
+                        if ( i == y) {
+                        }
+                        else if (chainData[i][2].getCol() == chainData[y][chain_length[y]].getCol()
+                                 && chainData[i][3].getCol() == chainData[y][chain_length[y-1]].getCol()
+                                 && chainData[i][2].getRow() == chainData[y][chain_length[y]].getRow()
+                                 && chainData[i][3].getRow() == chainData[y][chain_length[y-1]].getRow()) {
+                            // these two chains have the same traits and are wrongly thought to have 2 extra boxes,
+                            // so we simply subtract for every instance we find
+                            is_there_overlap = true;
+                            ////System.out.println("FOUND AN OVERLAP IN 67");
+                            how_many_overlaps++;
+                        }
+                     }
+                   }
+
+
+
+             if ( chainAmount > 2) {
+                   should_double_cross = false;
+                   ////System.out.println("I AM NOT DOUBLE CROSSING 3");
+             }
+           // so now i have the correct number of boxes left.
+            // only act upon the last chain 
+            else if ( chainAmount == 1 && chain_length[1] == 2) {
+
+
+
+
+
+
+                 int my_boxes = 0, his_boxes = 0;
+
+                 //decide if it is best to double_cross
+                 int t = 1;
+                 for ( t = 1; t < pchainAmount; t++) {
+                     if ( temp_biggest_potential == p_chain_length[t]){ 
+                     }
+                     else {
+                         my_boxes += ( p_chain_length[t] - 2);
+                         his_boxes += 2;
+                     }
+                 }
+                 my_boxes += temp_biggest_potential; // my last chain
+                 my_boxes += chain_length[1] - 2;
+                 his_boxes += 2;
+
+                 if ( his_boxes > my_boxes ) {
+                     should_double_cross = false; // its smaller and don't double cross'
+                     ////System.out.println("I AM NOT DOUBLE CROSSING 4");
+                 }
+                 else {
+                     should_double_cross = true; // its bigger
+                     ////System.out.println("I AM DOUBLE CROSSING 5");
+                 } 
+               if ( my_score == 0 && his_score == 0) {
+                     this.my_score = my_boxes;
+                     this.his_score = his_boxes; 
+                 }  
+               ////System.out.println("DEC - 1 THE SCORE WILL BE ---------------- my boxes are "+my_boxes+" and his boxes are "+his_boxes);
+             }
+             else if ( chainAmount == 2 && is_there_box == true) {
+                 int my_boxes = 0, his_boxes = 0;
+
+                 //decide if it is best to double_cross
+                 int t = 1;
+                 for ( t = 1; t < pchainAmount; t++) {
+                     if ( temp_biggest_potential == p_chain_length[t]){ 
+                     }
+                     else {
+                         my_boxes += ( p_chain_length[t] - 2);
+                         his_boxes += 2;
+                     }
+                 }
+                 my_boxes += temp_biggest_potential; // my last chain
+                 // now the boxes
+                 // i give away the current and the other ones
+                 his_boxes += 4 + ( how_many_empty_boxes *4);
+
+                 if ( his_boxes > my_boxes ) {
+                     should_double_cross = false; // its smaller and don't double cross'
+                     ////System.out.println("I AM NOT DOUBLE CROSSING 6");
+                 }
+                 else {
+                     should_double_cross = true; // its bigger
+                     ////System.out.println("I AM DOUBLE CROSSING 7");
+                 }
+                 if ( my_score == 0 && his_score == 0) {
+                     this.my_score = my_boxes;
+                     this.his_score = his_boxes; 
+                 }
+                 ////System.out.println("DEC - 3 THE SCORE WILL BE ---------------- my boxes are "+my_boxes+" and his boxes are "+his_boxes);
+
+             }
+             else if ( chainAmount == 2 && is_there_overlap == true && chain_length[1] == 3 && chain_length[2] == 3) {
+                  int my_boxes = 0, his_boxes = 0;
+
+                 //decide if it is best to double_cross
+                 int t = 1;
+                 for ( t = 1; t < pchainAmount; t++) {
+                     if ( temp_biggest_potential == p_chain_length[t]){ 
+                     }
+                     else {
+                         my_boxes += ( p_chain_length[t] - 2);
+                         his_boxes += 2;
+                     }
+                 }
+                 my_boxes += temp_biggest_potential; // my last chain
+
+                 // how big is the overlap
+                 my_boxes += (chain_length[1] + 1) - 4; // leave this
+                 his_boxes += 4;
+
+                 if ( his_boxes > my_boxes ) {
+                     should_double_cross = false; // its smaller and don't double cross'
+                     ////System.out.println("I AM NOT DOUBLE CROSSING 8");
+                 }
+                 else {
+                     should_double_cross = true; // its bigger
+                     ////System.out.println("I AM DOUBLE CROSSING 9");
+                 }
+                 if ( my_score == 0 && his_score == 0) {
+                     this.my_score = my_boxes;
+                     this.his_score = his_boxes; 
+                 } 
+                 ////System.out.println("DEC - 2 THE SCORE WILL BE ---------------- my boxes are "+my_boxes+" and his boxes are "+his_boxes);
+
+             }
+            if( should_double_cross == false ){
+                   ////System.out.println(" Ive DECIDED NOT TO DOUBLE CROSS THIS TIME");
+            } 
+
+           }
+       }
+   }
+   
+    // chains and potential chains
+   if (is_there_chain == true && is_there_potential_chain == true && picked == false) {
+       if ( neutral_edge_exists == true) {
+           if ( edges_left % 2 == 0) {
+               
+               if ( should_flip == false ) {
+                   tempEdge = new Edge( chainData[1][1].getCol(), chainData[1][1].getRow(), chainData[1][1].getEdge());
+                   picked = true;
+                   System.out.println(" debug 4 asd67");
+               }
+               
+               else {
+                   
+                   if ( chainAmount >= 2 ) {
+                       int z = 1;
+                       int d = 2;
+                       while ( z <= chainAmount ) {
+                           if ( chain_length[z] == 1 ) {
+                               while ( d <= chainAmount) {
+                                   if ( chain_length[d] == 1 ) {
+                                       // select it only if it is not in the even chain
+                                       if ( chainData[z][1].getEdge() == chainData[d][1].getEdge() 
+                                            && ( chainData[z][1].getRow() == chainData[d][1].getRow()
+                                            || chainData[z][1].getCol() == chainData[d][1].getCol())) {
+                                              
+                                            // cannot pick this pchain  
+                                          }
+                                       else {
+                                         tempEdge = new Edge( chainData[z][1].getCol(), chainData[z][1].getRow(), chainData[z][1].getEdge());
+                                         picked = true;
+                                         System.out.println("DEBUG 102");
+                                       }
+                                   }
+                                   d++;
+                               }
+                           }
+                           z++;
+                       }
+                   }
+                   
+                   
+                   if ( !picked ) {
+                   
+                       // pick all the chains bar the last box in the last chain
+                       int y = 1, current = chain_length[1], new_one, use = 1;
+                       while ( y <= chainAmount) {
+                            new_one = chain_length[y];
+                            if ( new_one > current) {
+                                current = new_one;
+                                use = y;
+                            }
+                       y++;
+                       }
+                       // now select the biggest one
+                       if ( chainAmount == 1 && chain_length[use] > 1 ) {
+                           tempEdge = new Edge( chainData[use][1].getCol(), chainData[use][1].getRow(), chainData[use][1].getEdge());
+                           picked = true;
+                           System.out.println(" debug 4");
+                       }
+                   }
+               }
+           }
+           else if ( edges_left % 2 == 1) { // watch out for odd chains
+                // WATCH OUT FOR ODD CHAINS
+             int q;
+           overlapping: for (q = 1; q<= chainAmount; q++) {
+                if ( chain_length[q] % 2 == 1 ) {
+                    
+                    if ( chain_length[q] >= 5 ) {
+                        tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                        picked = true;
+                        System.out.println(" debug 5");
+                    }
+                    else {
+                        // find another like this 1
+                        int r;
+                        for ( r = q + 1; r <= chainAmount; r++) {
+                            if ( chain_length[q] == chain_length[r]) {
+                                // two chains with the same length, now check their location
+                                if ( chain_length[q] == 1) {
+                                    if ( chainData[q][1].getEdge() == chainData[r][1].getEdge() 
+                                    && ( chainData[q][1].getRow() == chainData[r][1].getRow()
+                                    || chainData[q][1].getCol() == chainData[r][1].getCol())) {
+                                        tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                                        picked = true;  
+                                        System.out.println(" debug6");
+                                    }
+                                    else {
+                                        tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);
+                                        picked = true;
+                                        System.out.println(" debug7");
+                                        cannot_choose_it = true;
+                                    }
+                                }
+                                else if ( chainData[q][2].getCol() == chainData[r][chain_length[r]].getCol()
+                                     && chainData[q][3].getRow() == chainData[r][chain_length[r-1]].getRow()) {
+                                    // they are in the same chain
+                                    tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                                    picked = true;
+                                    System.out.println(" debug8");
+                                }
+                            }
+                        }
+                    }
+                    
+                }
+                else {
+                    tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                    picked = true;
+                    System.out.println(" debug9");
+                }
+               if ( picked ) {
+                    break overlapping;
+               }  
+             }
+           }
+           /*
+           else if ( edges_left % 2 == 1 ) { // watch out for even chains
+                // WATCH OUT FOR EVEN CHAINS 
+           int q;
+           overlapping:  for (q = 1; q<= chainAmount; q++) {
+                if ( chain_length[q] % 2 == 0 ) {
+                    
+                    if ( chain_length[q] >= 6) {
+                       tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                       picked = true; 
+                       System.out.println(" debug10");
+                    }
+                    
+                    else {
+                        // find another like this 1
+                        int r;
+                        for ( r = q + 1; r <= chainAmount; r++) {
+                            if ( chain_length[q] == chain_length[r]) {
+                                // two chains with the same length, now check their location
+                                if ( chain_length[q] == 1) {
+                                    if ( chainData[q][1].getEdge() == chainData[r][1].getEdge() 
+                                    && ( chainData[q][1].getRow() == chainData[r][1].getRow()
+                                    || chainData[q][1].getCol() == chainData[r][1].getCol())) {
+                                        tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+                                        picked = true;
+                                        cannot_choose_it = true;
+                                        System.out.println(" debug11");
+                                    }
+                                    else {
+                                        tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);
+                                        picked = true;
+                                        cannot_choose_it = true;
+                                        System.out.println(" debug12");
+                                    }
+                                }
+
+                                else if ( chainData[q][2].getCol() == chainData[r][chain_length[r]].getCol()
+                                     && chainData[q][3].getRow() == chainData[r][chain_length[r-1]].getRow()) {
+                                    // they are in the same chain
+                                   tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+                                    picked = true;
+                                    System.out.println(" debug13");
+                                    cannot_choose_it = true;
+                                }
+                            }
+                        }
+                    }
+                
+                }
+                else {
+                    tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                    picked = true;
+                    System.out.println(" debug14");
+                }
+                if ( picked ) {
+                    break overlapping;
+                }
+             }
+           }*/
+         if ( !picked ) {
+               tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+               picked = true;
+               System.out.println(" debug15");
+               cannot_choose_it = true;
+        }   
+         
+      }
+       else { // get all smaller chains
+
+         if (chainAmount == 1)  { // we are in last chain
+                if (should_double_cross == false)  { //only two boxes to gain
+                     tempEdge = new Edge(chainData[1][1].getCol(),chainData[1][1].getRow(),chainData[1][1].getEdge());
+                     picked = true;
+                     System.out.println(" debug16");
+                     ////System.out.println("Picked an Edge without neutral edge 2");
+                }
+                else if (should_double_cross == true ) {
+                            tempEdge = new Edge(chainData[1][2].getCol(),chainData[1][2].getRow(),chainData[1][2].getEdge());
+                            picked = true;
+                            System.out.println(" debug17");
+                            ////System.out.println("Picked an Edge without neutral edge 2");
+                }
+         }     
+      
+         if ( chainAmount == 2 && picked == false) {
+            if( is_there_box == true) {
+                if ( should_double_cross == true) {
+                  // these are all double crossing moves inside a box
+                    if ( north_box ) {
+                        tempEdge = new Edge(four_box[0][0]+1,four_box[0][1]+1,3);
+                        System.out.println(" debug18");
+                        ////System.out.println("Picked an Edge without neutral edge 3");
+                    }
+                    else if ( east_box ) {
+                        tempEdge = new Edge(four_box[0][0],four_box[0][1],2);
+                        System.out.println(" debug19");
+                        ////System.out.println("Picked an Edge without neutral edge 4");
+                    } 
+                    else if ( west_box ) {
+                        tempEdge = new Edge(four_box[0][0]+1,four_box[0][1]+1,0);
+                        System.out.println(" debug20");
+                        ////System.out.println("Picked an Edge without neutral edge 5");
+                    }
+                    else if ( south_box ) {
+                        tempEdge = new Edge(four_box[0][0],four_box[0][1],1);
+                        System.out.println(" debug21");
+                        ////System.out.println("Picked an Edge without neutral edge 6");
+                    }
+                picked = true;
+                }
+            }
+         }
+  
+               // checking if two chains are in a the same chain, i.e the same except the last and first locations
+         if ( chainAmount >= 2 && picked == false) { // this should be if two chains are the same, not just 2 chains     
+              if( temp_smallest_chain != 3) { // getting rid of the smaller ones first
+                tempEdge = new Edge(chainData[chain_use][1].getCol(),chainData[chain_use][1].getRow(),chainData[chain_use][1].getEdge());
+                picked = true;
+                System.out.println(" debug22");
+                ////System.out.println("Picked an Edge without neutral edge 7");
+              } 
+              else {
+
+                  i = 1;
+                   int how_many_length_three = 0;
+                      while( i <= chainAmount) {
+                        if(chain_length[i] == 3) {
+                           how_many_length_three++;
+                         }
+                          i++;
+                      }
+
+                  boolean found = false;    
+                  if( how_many_length_three >= 2 && picked == false) {
+                       i = 1; int y = 1;
+                  this_looped: for  ( i = 1; i < chainAmount; i++) {
+                           for ( y = 2; y <= chainAmount; y++) {
+                               if ( i == y) {
+                               }
+                               else if (chainData[i][2].getCol() == chainData[y][3].getCol()
+                                   && chainData[i][3].getCol() == chainData[y][2].getCol()
+                                   && chainData[i][2].getRow() == chainData[y][3].getRow()
+                                   && chainData[i][3].getRow() == chainData[y][2].getRow()) {
+                               // found a chain with similiar traits
+                               found = true;
+                                // if we want to double cross we must do it here
+                                   if ( should_double_cross == false ) {
+                                       tempEdge = new Edge(chainData[i][1].getCol(),chainData[i][1].getRow(),chainData[i][1].getEdge()); // odd one of the three length chains
+                                       picked = true;
+                                       System.out.println(" debug23");
+                                       ////System.out.println("Picked an Edge without neutral edge 8");
+                                       break this_looped;
+                                   }
+                                   else { // double crossing here
+                                        // make sure only two chains left
+                                        if ( chainAmount == 2 && chain_length[1] == 3 && chain_length[2] == 3) { // need to include the boxes 
+                                            tempEdge = new Edge(chainData[i][2].getCol(),chainData[i][2].getRow(),chainData[i][2].getEdge());
+                                            picked = true;
+                                            System.out.println(" debug24");
+                                            ////System.out.println("Picked an Edge without neutral edge 9");
+                                            break this_looped;
+                                        }
+                                        else if ( chainAmount >= 3) {
+                                            //select every chain that is not i or y
+                                            if( i != 1) {
+                                                tempEdge = new Edge(chainData[1][1].getCol(),chainData[1][1].getRow(),chainData[1][1].getEdge()); 
+                                                picked = true;
+                                                System.out.println(" debug25");
+                                                ////System.out.println("Picked an Edge without neutral edge 10");
+                                                break this_looped;
+                                            }
+                                            else if( y != 2) {
+                                                tempEdge = new Edge(chainData[2][1].getCol(),chainData[2][1].getRow(),chainData[2][1].getEdge()); 
+                                                picked = true;
+                                                System.out.println(" debug26");
+                                                ////System.out.println("Picked an Edge without neutral edge 11");
+                                                break this_looped;
+                                            }
+                                            else if ( i == 1 && y == 2 && chainAmount >= 3) {
+                                                tempEdge = new Edge(chainData[3][1].getCol(),chainData[3][1].getRow(),chainData[3][1].getEdge()); 
+                                                picked = true;
+                                                System.out.println(" debug27");
+                                                ////System.out.println("Picked an Edge without neutral edge 12");
+                                                break this_looped;
+                                            }
+                                        }
+                                   }
+                                }
+                           }
+                           if ( found == false ) {
+                               tempEdge = new Edge(chainData[i][1].getCol(),chainData[i][1].getRow(),chainData[i][1].getEdge()); // odd one of the three length chains
+                               picked = true;
+                               System.out.println(" debug28");
+                               ////System.out.println("Picked an Edge without neutral edge 13");
+                               break this_looped;
+                           }
+                       }
+                  }
+                  else if ( how_many_length_three < 2 && picked == false) {
+                      tempEdge = new Edge(chainData[chain_use][1].getCol(),chainData[chain_use][1].getRow(),chainData[chain_use][1].getEdge());
+                      picked = true; 
+                      System.out.println(" debug29");
+                      ////System.out.println("Picked an Edge without neutral edge 14");
+                  }
+              }
+     }
+       
+           // leave this
+      if ( picked == false) {
+               tempEdge = new Edge(chainData[chain_use][1].getCol(),chainData[chain_use][1].getRow(),chainData[chain_use][1].getEdge());
+               picked = true;
+               System.out.println(" debug3");
+               ////System.out.println("Picked an Edge without neutral edge 15");
+           }
+       }
+   }
+  // only potential chains
+   else if (is_there_chain == false && is_there_potential_chain == true && picked == false)  { // no chain but only p.chains
+       if (neutral_edge_exists == true)  {   // neutral edgee exists
+           tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);
+           picked = true;
+           System.out.println(" debug31");
+           cannot_choose_it = true;
+           ////System.out.println("Picked an Edge without neutral edge 16");
+       }
+       else {  // find smallest potential chain and give it away
+           
+           if ( temp_smallest_potential == 1 && pchainAmount >= 2 ) {
+               int r = 1, badly = -1;
+               boolean another = false, one = false;
+               boolean p_another = false, two = false;
+               while ( r <= pchainAmount ) {
+                   if ( p_chain_length[r] == 1 ) {
+                       int w = r + 1;
+                       one = true;
+                       while ( w <= pchainAmount ) {
+                           if ( p_chain_length[w] == 1) {
+                               another = true;
+                           }
+                           w++;
+                       }
+                   }
+                    r++;
+               }
+               if ( another == false && one == true) {
+                // find a two chain if it exists
+                 int u = 1;
+                 while ( u <= pchainAmount ) {
+                   if ( p_chain_length[u] == 2 ) {
+                      int p = u + 1;
+                      two = true;
+                      badly = u;
+                         while ( p <= pchainAmount ) {
+                             if ( p_chain_length[p] == 2) {
+                                   p_another = true;
+                             }
+                             p++;
+                         }
+                   }
+                   u++;
+                 }
+               }
+               // continue : there should be two p.chains of size 2, and 1 p.chain of 1. then choose badly, and
+               // 
+               
+               
+               if ( another == false && one == true && p_another == true && two == true ) {
+                   // pick the two chain badly 
+                   // get the two chain
+                   int this_row, this_col, next_row, next_col;
+                       this_col = pchainData[badly][1].getCol();
+                       this_row = pchainData[badly][1].getRow();
+                       next_col = pchainData[badly][2].getCol();
+                       next_row = pchainData[badly][2].getRow();
+                       
+                       if ( this_row == next_row - 1 && this_col == next_col ) { // south edge i must select
+                        tempEdge = new Edge(this_col,this_row,2);
+                        picked = true;
+                        System.out.println(" debug32s");
+                       }
+                       else if ( this_row == next_row + 1 && this_col == next_col ) { // north edge i must select
+                        tempEdge = new Edge(this_col,this_row,0);
+                        picked = true;
+                        System.out.println(" debug33s1");
+                       }
+                       else if ( this_row == next_row && this_col == next_col - 1 ) { // east edge i must select
+                        tempEdge = new Edge(this_col,this_row,1);
+                        picked = true;
+                        System.out.println(" debug34s2");
+                       }
+                       else if ( this_row == next_row && this_col == next_col + 1 ) { // west edge i must select
+                        tempEdge = new Edge(this_col,this_row,3);
+                        picked = true;
+                        System.out.println(" debug35s3");
+                       }
+               }
+           }
+           
+      if ( !picked ) {          
+           if ( temp_smallest_potential == 2) {
+               // pick the edge that wont allow double crossing
+               int y = 1;
+               while ( y <= pchainAmount) {
+                   if ( p_chain_length[y] == 2) {
+                       int this_row, this_col, next_row, next_col;
+                       this_col = pchainData[y][1].getCol();
+                       this_row = pchainData[y][1].getRow();
+                       next_col = pchainData[y][2].getCol();
+                       next_row = pchainData[y][2].getRow();
+                       
+                       if ( this_row == next_row - 1 && this_col == next_col ) { // south edge i must select
+                        tempEdge = new Edge(this_col,this_row,2);
+                        picked = true;
+                        System.out.println(" debug32");
+                       }
+                       else if ( this_row == next_row + 1 && this_col == next_col ) { // north edge i must select
+                        tempEdge = new Edge(this_col,this_row,0);
+                        picked = true;
+                        System.out.println(" debug33");
+                       }
+                       else if ( this_row == next_row && this_col == next_col - 1 ) { // east edge i must select
+                        tempEdge = new Edge(this_col,this_row,1);
+                        picked = true;
+                        System.out.println(" debug34");
+                       }
+                       else if ( this_row == next_row && this_col == next_col + 1 ) { // west edge i must select
+                        tempEdge = new Edge(this_col,this_row,3);
+                        picked = true;
+                        System.out.println(" debug35");
+                       }
+                       
+                   }
+                   y++;
+               }
+           }
+           
+           
+
+          // see if there is another size of 3 without any hitches to it
+          if (temp_smallest_potential == 3) {
+              // lets see if we can pick it
+            boolean my_turn = true;
+             if (my_turn == true && (four_box[0][0] == pchainData[i][1].getCol() && four_box[0][1] == pchainData[i][1].getRow()
+                  || four_box[0][0] == pchainData[i][2].getCol() && four_box[0][1] == pchainData[i][2].getRow()
+                  || four_box[0][0] == pchainData[i][3].getCol() && four_box[0][1] == pchainData[i][3].getRow() )) {
+                   // cant use this chain as it will give away an even chain
+                   // bug what about a chain with 3 with opposite starting points
+                   my_turn = false;
+                                      
+             }
+             if ( pchainAmount >= 2 && my_turn == true) {
+               int y;
+                 for  ( i = 1; i < pchainAmount; i++) {
+                   for ( y = 2; y <= pchainAmount; y++) {
+                      if ( i == y) {
+                      }
+                      else if (pchainData[i][2].getCol() == pchainData[y][3].getCol()
+                               && pchainData[i][3].getCol() == pchainData[y][2].getCol()
+                               && pchainData[i][2].getRow() == pchainData[y][3].getRow()
+                               && pchainData[i][3].getRow() == pchainData[y][2].getRow()) {
+                               // cant pick this either
+                               my_turn = false;
+                                                 
+                      }
+                   
+                   }
+                 }
+                 if ( my_turn == true && !viewBoard.isSelected(pchainData[i][1].getCol(),pchainData[i][1].getRow(),pchainData[i][1].getEdge())) {
+                      tempEdge = new Edge(pchainData[i][1].getCol(),pchainData[i][1].getRow(),pchainData[i][1].getEdge());
+                      picked = true;
+                      System.out.println(" debug36");
+                      ////System.out.println("Picked an Edge without neutral edge 17");
+                                          
+                 }
+             }
+          }
+      }
+         if ( picked == false) {
+             tempEdge = new Edge(pchainData[potential_chain_use][1].getCol(),pchainData[potential_chain_use][1].getRow(),pchainData[potential_chain_use][1].getEdge());
+             picked = true;
+             ////System.out.println("Picked an Edge without neutral edge 18");
+             System.out.println(" debug37");
+          }
+       }
+   }
+    // only exists a chain
+   else if (is_there_chain == true && is_there_potential_chain == false && picked == false) {
+      if ( neutral_edge_exists == true) {
+          if ( edges_left % 2 == 0) {
+              
+              if ( should_flip == false ) {
+                   tempEdge = new Edge( chainData[1][1].getCol(), chainData[1][1].getRow(), chainData[1][1].getEdge());
+                   picked = true;
+                   System.out.println("DEBUG 103");
+               }
+              
+              else {
+                  
+                  if ( chainAmount >= 2 ) {
+                       int z = 1;
+                       int d = 2;
+                       while ( z <= chainAmount ) {
+                           if ( chain_length[z] == 1 ) {
+                               while ( d <= chainAmount) {
+                                   if ( chain_length[d] == 1 ) {
+                                       // select it only if it is not in the even chain
+                                       if ( chainData[z][1].getEdge() == chainData[d][1].getEdge() 
+                                            && ( chainData[z][1].getRow() == chainData[d][1].getRow()
+                                            || chainData[z][1].getCol() == chainData[d][1].getCol())) {
+                                              
+                                            // cannot pick this pchain  
+                                          }
+                                       else {
+                                         tempEdge = new Edge( chainData[z][1].getCol(), chainData[z][1].getRow(), chainData[z][1].getEdge());
+                                         picked = true;
+                                         System.out.println("DEBUG 101");
+                                       }
+                                   }
+                                   d++;
+                               }
+                           }
+                           z++;
+                       }
+                   }
+                  
+                  if ( !picked ) {
+                       // pick all the chains bar the last box in the last chain
+                       int y = 1, current = chain_length[1], new_one, use = 1;
+                       while ( y <= chainAmount) {
+                            new_one = chain_length[y];
+                            if ( new_one > current) {
+                                current = new_one;
+                                use = y;
+                            }
+                       y++;
+                       }
+                       // now select the biggest one
+                       if ( chainAmount == 1 && chain_length[use] > 1 ) {
+                           tempEdge = new Edge( chainData[use][1].getCol(), chainData[use][1].getRow(), chainData[use][1].getEdge());
+                           picked = true;
+                           System.out.println(" debug38");
+                       }
+                  }
+              }
+           }
+          else if ( edges_left == 1 ) { // watch out for odd chains
+               
+                // WATCH OUT FOR ODD CHAINS
+             int q;
+           overlapping: for (q = 1; q<= chainAmount; q++) {
+                if ( chain_length[q] % 2 == 1 ) {
+                    if ( chain_length[q] >= 5) {
+                       tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                       picked = true; 
+                       System.out.println(" debug39");
+                    }
+                    else {
+                        // find another like this 1
+                        int r;
+                        for ( r = q + 1; r <= chainAmount; r++) {
+                            if ( chain_length[q] == chain_length[r]) {
+                                // two chains with the same length, now check their location
+                                if ( chain_length[q] == 1) {
+                                    if ( chainData[q][1].getEdge() == chainData[r][1].getEdge() 
+                                    && ( chainData[q][1].getRow() == chainData[r][1].getRow()
+                                    || chainData[q][1].getCol() == chainData[r][1].getCol())) {
+                                        tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                                        picked = true;  
+                                        System.out.println(" debug40");
+                                    }
+                                }
+                                else if ( chainData[q][2].getCol() == chainData[r][chain_length[r]].getCol()
+                                     && chainData[q][3].getRow() == chainData[r][chain_length[r-1]].getRow()) {
+                                    // they are in the same chain
+                                    tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                                    picked = true;
+                                    System.out.println(" debug41");
+                                }
+                            }
+                        }
+                    }
+                }
+                else {
+                    tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                    picked = true;
+                    System.out.println(" debug42");
+                }
+               if ( picked ) {
+                    break overlapping;
+               }  
+             }
+           }
+          /*
+           else if ( edges_left == 1) { // watch out for even chains
+                // WATCH OUT FOR EVEN CHAINS 
+           int q;
+           overlapping:  for (q = 1; q<= chainAmount; q++) {
+                if ( chain_length[q] % 2 == 0 ) {
+                    if ( chain_length[q] >= 6) {
+                       tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                       picked = true; 
+                       System.out.println(" debug43");
+                    }
+                    else {
+                        // find another like this 1
+                        int r;
+                        for ( r = q + 1; r <= chainAmount; r++) {
+                            if ( chain_length[q] == chain_length[r]) {
+                                // two chains with the same length, now check their location
+                                if ( chain_length[q] == 1) {
+                                    if ( chainData[q][1].getEdge() == chainData[r][1].getEdge() 
+                                    && ( chainData[q][1].getRow() == chainData[r][1].getRow()
+                                    || chainData[q][1].getCol() == chainData[r][1].getCol())) {
+                                        tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+                                        picked = true;
+                                        System.out.println(" debug44");
+                                        cannot_choose_it = true;
+                                    }
+                                }
+                                else if ( chainData[q][2].getCol() == chainData[r][chain_length[r]].getCol()
+                                     && chainData[q][3].getRow() == chainData[r][chain_length[r-1]].getRow()) {
+                                    // they are in the same chain
+                                    tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+                                    picked = true;
+                                    System.out.println(" debug45");
+                                    cannot_choose_it = true;
+                                }
+                            }
+                        }
+                    }
+                
+                }
+                else {
+                    tempEdge = new Edge(chainData[q][1].getCol(),chainData[q][1].getRow(),chainData[q][1].getEdge());
+                    picked = true;
+                    System.out.println(" debug46");
+                }
+                if ( picked ) {
+                    break overlapping;
+                }
+             }
+           } */
+        if ( !picked ) {
+               tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+               picked = true;
+               cannot_choose_it = true;
+               System.out.println(" debug47");
+        }     
+      }
+       else { //select chains starting with smallest
+               if ( edges_left == 2) { // just select the last edges 
+                   //////System.out.println("PICKING THE LAST CHAINS LAST EDGES 9"); 
+                    tempEdge = new Edge(chainData[1][1].getCol(),chainData[1][1].getRow(),chainData[1][1].getEdge());
+                    picked = true;
+                    System.out.println(" debug48");
+                    ////System.out.println("Picked an Edge without neutral edge 20");
+                 }
+              else if ( should_double_cross == true) {
+                   System.out.println(" debug49");
+                tempEdge = new Edge(chainData[chain_use][2].getCol(),chainData[chain_use][2].getRow(),chainData[chain_use][2].getEdge());
+                picked = true;
+              }
+       
+           if (picked == false) {
+                   System.out.println(" debug50");
+               tempEdge = new Edge(chainData[chain_use][1].getCol(),chainData[chain_use][1].getRow(),chainData[chain_use][1].getEdge());
+               picked = true;
+               ////System.out.println("Picked an Edge without neutral edge 21");
+           }
+       }
+
+   }
+   
+   
+   // no chains or potential chains
+   if (is_there_chain == false && is_there_potential_chain == false && neutral_edge_exists == true && picked == false && cannot_choose_it == false) {
+           tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+           picked = true;
+           System.out.println(" debug51");
+           ////System.out.println("Picked an Edge with neutral edge 22");
+           cannot_choose_it = true;
+   } 
+   /*
+   if ( cannot_choose_it == true && picked == false) {
+       tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+       picked = true;
+       ////System.out.println("im not picking the chain you want me to pick");
+       
+   }
+   */
+   if ( cannot_choose_it == true || tempEdge == null) {
+       if ( neutral_edge_exists ) {
+               ////System.out.println("---------here 1--------");
+               if ( (edges_left % 2 == 1)) {
+                   ////System.out.println("---------TRYING TO FECKING GET RID OF A P_CHAIN OF THE GLORIOUS LENGTH OF --------");
+                  // never have a one pchain size and only have one size two chain
+                   // would be best to create one on the edge of the board
+                       // so we need to act
+                       // the corners
+                   if( should_flip == true ) {
+                           int randy;
+                            randy = (seed * (int) (Math.random()*567)) % 4;
+                            if (randy == 0 && !viewBoard.isSelected(0,0,0) ) {
+                                tempEdge = new Edge ( 0, 0, 0 );
+                                picked = true;
+                                System.out.println(" debug52");
+                            }
+                            if ( randy == 1 && !viewBoard.isSelected(column-1,row-1,2) ) {
+                               tempEdge = new Edge ( column-1,row-1,2 );
+                               System.out.println(" debug53");
+                               picked = true; 
+                            }
+                            if ( randy == 2 && !viewBoard.isSelected(column-1,0,1) ) {
+                               tempEdge = new Edge ( column-1,0,1 );
+                               System.out.println(" debug54");
+                               picked = true; 
+                            }
+                            if ( randy == 3 && !viewBoard.isSelected(0,row-1,2) ) {
+                               tempEdge = new Edge ( 0,row-1,2 );
+                               System.out.println(" debug55");
+                               picked = true; 
+                            }
+                            else {
+                            }
+                   }
+                   if ( pchainAmount >= 1 ) {
+
+                           int y = 1;
+                        this_one:   while ( y <= pchainAmount ) {
+                            int b = 0, edges = 4;
+                            ////System.out.println("---------here 4--------");
+                                if ( p_chain_length[y] == 1) {
+                                    ////System.out.println("-------------------------- trying to remove a p_chain of length 1");
+                                    // need to get rid of this chain length
+                                    // find the edges that are not selected and select a neutral beside it
+                                    int this_col, this_row;
+                                    this_col = pchainData[y][1].getCol();
+                                    this_row = pchainData[y][1].getRow();
+                                    ////System.out.println("this is the col "+this_col+" and this is the row "+this_row);
+                                    // what edges are not selected
+                                    if ( !viewBoard.isSelected(this_col, this_row, 0)) {
+                                        // north is not selected
+                                        // try and pick 1, 3
+                                        // can pick 0 iff 1 or 3 exist
+                                        if ( this_row > 0 ) {
+                                            b = 0; edges = 4;
+                                            while ( b < 4 ) {
+                                                if ( !viewBoard.isSelected(this_col, this_row-1, b) ) {
+                                                    edges--;
+                                                }
+                                                b++;
+                                            }
+                                            if ( edges < 2 ) {
+                                                if ( !viewBoard.isSelected(this_col, this_row-1, 1) ) {
+                                                    b = 0; edges = 4;
+                                                    while ( b < 4 ) {
+                                                        if ( this_col < column -1 ) {
+                                                            if ( !viewBoard.isSelected(this_col+1, this_row-1, b) ) {
+                                                                 edges--;
+                                                            }
+                                                        }
+                                                        b++;
+                                                    }
+                                                    if ( edges < 2 || this_col == column - 1) {
+                                                        tempEdge = new Edge ( this_col, this_row-1, 1);
+                                                        picked = true;
+                                                        System.out.println(" debug56");
+                                                        ////System.out.println("here 100 with edges "+edges);
+                                                        break this_one;
+                                                    }
+
+                                                }
+                                                else if ( !viewBoard.isSelected(this_col, this_row-1, 3) ) {
+                                                    b = 0; edges = 4;
+                                                    while ( b < 4 ) {
+                                                        if ( this_col > 0 ) {
+                                                            if ( !viewBoard.isSelected(this_col-1, this_row-1, b) ) {
+                                                                 edges--;
+                                                            }
+                                                        }
+                                                        b++;
+                                                    }
+                                                    if ( edges < 2 || this_col == 0 ) {
+                                                        tempEdge = new Edge ( this_col, this_row-1, 3);
+                                                        picked = true;
+                                                        System.out.println(" debug57");
+                                                        ////System.out.println("here 101");
+                                                        break this_one;
+                                                    }
+                                                }
+                                                else if ( !viewBoard.isSelected(this_col, this_row-1, 0) ) {
+                                                        b = 0; edges = 4;
+                                                        while ( b < 4 ) {
+                                                            if ( this_row > 1) {
+                                                                if ( !viewBoard.isSelected(this_col, this_row-2, b) ) {
+                                                                     edges--;
+                                                                }
+                                                            }
+                                                            b++;
+                                                        }
+                                                        if ( edges < 2 || this_row == 0) {
+                                                            tempEdge = new Edge ( this_col, this_row-1, 0);
+                                                            picked = true;
+                                                            System.out.println(" debug58");
+                                                            ////System.out.println("here 102");
+                                                            break this_one;
+                                                        }
+
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if ( !viewBoard.isSelected(this_col, this_row, 1)) {
+                                        if ( this_col < column - 1 ) {
+                                            b = 0; edges = 4;
+                                            while ( b < 4 ) {
+                                                if ( !viewBoard.isSelected(this_col+1, this_row, b) ) {
+                                                    edges--;
+                                                }
+                                                b++;
+                                            }
+                                            if ( edges < 2 ) {
+                                                if ( !viewBoard.isSelected(this_col+1, this_row, 0) ) {
+                                                    b = 0; edges = 4;
+                                                    while ( b < 4 ) {
+                                                        if ( this_row > 0 ) {
+                                                            if ( !viewBoard.isSelected(this_col+1, this_row-1, b) ) {
+                                                                 edges--;
+                                                            }
+                                                        }
+                                                        b++;
+                                                    }
+                                                    if ( edges < 2 || this_row == 0 ) {
+                                                        tempEdge = new Edge ( this_col+1, this_row, 0);
+                                                        picked = true;
+                                                        System.out.println(" debug59");
+                                                        ////System.out.println("here 103");
+                                                        break this_one;
+                                                    }
+
+                                                }
+                                                else if ( !viewBoard.isSelected(this_col+1, this_row, 2) ) {
+                                                    b = 0; edges = 4;
+                                                    while ( b < 4 ) {
+                                                        if ( this_row < row - 1 ) {
+                                                            if ( !viewBoard.isSelected(this_col+1, this_row+1, b) ) {
+                                                                 edges--;
+                                                            }
+                                                        }
+                                                        b++;
+                                                    }
+                                                    if ( edges < 2 || this_row == row - 1 ) {
+                                                        tempEdge = new Edge ( this_col+1, this_row, 2);
+                                                        picked = true;
+                                                        System.out.println(" debug60");
+                                                        ////System.out.println("here 104");
+                                                        break this_one;
+                                                    }
+                                                }
+                                                else if ( !viewBoard.isSelected(this_col+1, this_row, 1) ) {
+                                                        b = 0; edges = 4;
+                                                        while ( b < 4 ) {
+                                                            if ( this_col < column - 2 ) {
+                                                                if ( !viewBoard.isSelected(this_col+2, this_row, b) ) {
+                                                                     edges--;
+                                                                }
+                                                            }
+                                                            b++;
+                                                        }
+                                                        if ( edges < 2 || this_col == column - 1) {
+                                                            tempEdge = new Edge ( this_col+1, this_row, 1);
+                                                            picked = true;
+                                                            System.out.println(" debug61");
+                                                            ////System.out.println("here 105");
+                                                            break this_one;
+                                                        }
+
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if ( !viewBoard.isSelected(this_col, this_row, 2)) {
+                                        if ( this_row < row - 1 ) {
+                                            b = 0; edges = 4;
+                                            while ( b < 4 ) {
+                                                if ( !viewBoard.isSelected(this_col, this_row+1, b) ) {
+                                                    edges--;
+                                                }
+                                                b++;
+                                            }
+                                            if ( edges < 2 ) {
+                                                if ( !viewBoard.isSelected(this_col, this_row+1, 1) ) {
+                                                    b = 0; edges = 4;
+                                                    while ( b < 4 ) {
+                                                        if ( this_col < column - 1 ) {
+                                                            if ( !viewBoard.isSelected(this_col+1, this_row+1, b) ) {
+                                                                 edges--;
+                                                            }
+                                                        }
+                                                        b++;
+                                                    }
+                                                    if ( edges < 2 || this_col == column - 1 ) {
+                                                        tempEdge = new Edge ( this_col, this_row+1, 1);
+                                                        picked = true;
+                                                        System.out.println(" debug62");
+                                                        ////System.out.println("here 106");
+                                                        break this_one;
+                                                    }
+
+                                                }
+                                                else if ( !viewBoard.isSelected(this_col, this_row+1, 3) ) {
+                                                    b = 0; edges = 4;
+                                                    while ( b < 4 ) {
+                                                        if ( this_col > 0 ) {
+                                                            if ( !viewBoard.isSelected(this_col-1, this_row+1, b) ) {
+                                                                 edges--;
+                                                            }
+                                                        }
+                                                        b++;
+                                                    }
+                                                    if ( edges < 2 || this_col == 0 ) {
+                                                        tempEdge = new Edge ( this_col, this_row+1, 3);
+                                                        picked = true;
+                                                        System.out.println(" debug63");
+                                                        ////System.out.println("here 107");
+                                                        break this_one;
+                                                    }
+                                                }
+                                                else if ( !viewBoard.isSelected(this_col, this_row+1, 2) ) {
+                                                        b = 0; edges = 4;
+                                                        while ( b < 4 ) {
+                                                            if ( this_row < row - 2 ) {
+                                                                if ( !viewBoard.isSelected(this_col, this_row+2, b) ) {
+                                                                     edges--;
+                                                                }
+                                                            }
+                                                            b++;
+                                                        }
+                                                        if ( edges < 2 || this_row == row - 1 ) {
+                                                            tempEdge = new Edge ( this_col, this_row+1, 2);
+                                                            picked = true;
+                                                            System.out.println(" debug64");
+                                                            ////System.out.println("here 108");
+                                                            break this_one;
+                                                        }
+
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if ( !viewBoard.isSelected(this_col, this_row, 3)) {
+                                        if ( this_col > 0 ) {
+                                            b = 0; edges = 4;
+                                            while ( b < 4 ) {
+                                                if ( !viewBoard.isSelected(this_col-1, this_row, b) ) {
+                                                    edges--;
+                                                }
+                                                b++;
+                                            }
+                                            if ( edges < 2 ) {
+                                                if ( !viewBoard.isSelected(this_col-1, this_row, 0) ) {
+                                                    b = 0; edges = 4;
+                                                    while ( b < 4 ) {
+                                                        if ( this_row > 0 ) {
+                                                            if ( !viewBoard.isSelected(this_col-1, this_row-1, b) ) {
+                                                                 edges--;
+                                                            }
+                                                        }
+                                                        b++;
+                                                    }
+                                                    if ( edges < 2 || this_row == 0 ) {
+                                                        tempEdge = new Edge ( this_col-1, this_row, 0);
+                                                        picked = true;
+                                                        System.out.println(" debug65");
+                                                        ////System.out.println("here 109");
+                                                        break this_one;
+                                                    }
+
+                                                }
+                                                else if ( !viewBoard.isSelected(this_col-1, this_row, 2) ) {
+                                                    b = 0; edges = 4;
+                                                    while ( b < 4 ) {
+                                                        if ( this_row < row - 1 ) {
+                                                            if ( !viewBoard.isSelected(this_col-1, this_row+1, b) ) {
+                                                                 edges--;
+                                                            }
+                                                        }
+                                                        b++;
+                                                    }
+                                                    if ( edges < 2 || this_row == row - 1 ) {
+                                                        tempEdge = new Edge ( this_col-1, this_row, 2);
+                                                        picked = true;
+                                                        System.out.println(" debug66");
+                                                        ////System.out.println("here 110");
+                                                        break this_one;
+                                                    }
+                                                }
+                                                else if ( !viewBoard.isSelected(this_col-1, this_row, 3) ) {
+                                                        b = 0; edges = 4;
+                                                        while ( b < 4 ) {
+                                                            if ( this_col > 1 ) {
+                                                                if ( !viewBoard.isSelected(this_col-2, this_row, b) ) {
+                                                                     edges--;
+                                                                }
+                                                            }
+                                                            b++;
+                                                        }
+                                                        if ( edges < 2 || this_col == 0 ) {
+                                                            tempEdge = new Edge ( this_col-1, this_row, 3);
+                                                            picked = true;
+                                                            System.out.println(" debug67");
+                                                            ////System.out.println("here 111");
+                                                            break this_one;
+                                                        }
+
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // if i get here with picked == false then something is seriously wrong, but it shouldn't'
+                                    // this happens when we have a potential at any corner
+                                }
+                                y++;
+                           }
+                       if ( picked ) {
+                            ////System.out.println("-------------------------- I HAVE REMOVED A P_CHAIN OF LENGTH 1 ----------------------------");
+                        }
+                   }
+               }
+               else {// need to make a p_chain of length 1
+                   int how_many = 0;
+                       if ( (viewBoard.isSelected(0, row-1, 0) && viewBoard.isSelected(0, row-1, 1) 
+                            && (!viewBoard.isSelected(0, row-1, 2) && !viewBoard.isSelected(0, row-1, 3)))) {
+                           how_many = 1;
+                       }
+                           
+                       if (viewBoard.isSelected(0, 0, 1) && viewBoard.isSelected(0, 0, 2)
+                            && (!viewBoard.isSelected(0, 0, 0) && !viewBoard.isSelected(0, 0, 3))) {
+                          how_many = 2;
+                           
+                       }
+                       if  (viewBoard.isSelected(column-1, row-1, 0) && viewBoard.isSelected(column-1, row-1, 3)
+                            && (!viewBoard.isSelected(column-1, row-1, 1) && !viewBoard.isSelected(column-1, row-1, 2))) {
+                            how_many = 3;
+                           
+                       }
+                       if  (viewBoard.isSelected(column-1, 0, 3) && viewBoard.isSelected(column-1, 0, 2)
+                            && (!viewBoard.isSelected(column-1, 0, 1) && !viewBoard.isSelected(column-1, 0, 0)))  {
+                           how_many = 4;
+                       }
+                   
+                       if ( how_many == 1 || how_many == 3) {
+                            this.should_flip = false;
+                            //System.out.println("i have stopped flipping");
+                       }
+                       else if ( how_many == 2 || how_many == 4 ) {
+                            this.should_flip = true;
+                            //System.out.println("i have started flipping again");
+                       }
+                   
+                   
+                            
+                            ////System.out.println("i have stopped flipping");
+                       if ( this.should_flip == true ) {
+                           if ( !viewBoard.isSelected(0, row-1, 0) || !viewBoard.isSelected(0, row-1, 1) 
+                            && (!viewBoard.isSelected(0, row-1, 2) && !viewBoard.isSelected(0, row-1, 3))) {
+                               if ( !viewBoard.isSelected(0, row-1, 0) ) {
+                                   tempEdge = new Edge (0, row-1, 0);
+                                   picked = true;
+                                   System.out.println(" debug68");
+                               }
+                               else if ( !viewBoard.isSelected(0, row-1, 1) ) {
+                                   tempEdge = new Edge (0, row-1, 1);
+                                   picked = true;
+                                   System.out.println(" debug69");
+                               }
+                           }
+                           else if ( !viewBoard.isSelected(0, 0, 1) || !viewBoard.isSelected(0, 0, 2) 
+                            && (!viewBoard.isSelected(0, 0, 0) && !viewBoard.isSelected(0, 0, 3))) {
+                               if ( !viewBoard.isSelected(0, 0, 1) ) {
+                                   tempEdge = new Edge (0, 0, 1);
+                                   picked = true;
+                                   System.out.println(" debug70");
+                               }
+                               else if ( !viewBoard.isSelected(0, 0, 2) ) {
+                                   tempEdge = new Edge (0, 0, 2);
+                                   picked = true;
+                                   System.out.println(" debug71");
+                               }
+                           }
+                           else if ( !viewBoard.isSelected(column-1, row-1, 1) || !viewBoard.isSelected(column-1, row-1, 3) 
+                            && (!viewBoard.isSelected(column-1, row-1, 1) && !viewBoard.isSelected(column-1, row-1, 2))) {
+                               if ( !viewBoard.isSelected(column-1, row-1, 1) ) {
+                                   tempEdge = new Edge (column-1, row-1, 1);
+                                   picked = true;
+                                   System.out.println(" debug72");
+                               }
+                               else if ( !viewBoard.isSelected(column-1, row-1, 3) ) {
+                                   tempEdge = new Edge (column-1, row-1, 3);
+                                   picked = true;
+                               }
+                           }
+                           else if ( !viewBoard.isSelected(column-1, 0, 3) || !viewBoard.isSelected(column-1, 0, 2) 
+                            && (!viewBoard.isSelected(column-1, 0, 1) && !viewBoard.isSelected(column-1, 0, 0))) {
+                               if ( !viewBoard.isSelected(column-1, 0, 3) ) {
+                                   tempEdge = new Edge (column-1, 0, 3);
+                                   picked = true;
+                                   System.out.println(" debug73");
+                               }
+                               else if ( !viewBoard.isSelected(column-1, 0, 2) ) {
+                                   tempEdge = new Edge (column-1, 0, 2);
+                                   picked = true;
+                                   System.out.println(" debug74");
+                               }
+                           }
+
+                       }
+                   }
+               }
+
+       }
+   
+   
+   if ( this.should_flip == false ) {
+              ////System.out.println("...................... No need to flip as i have got a small p_chain of size one");
+    } 
+   
+   
+   if ( tempEdge == null) {
+              ////System.out.println("-----------ERROR---------ERROR--------ERROR----------ERROR-----------------no edge got selected......................");
+    }  
+    if ( tempEdge == null && neutral_edge_exists && picked == false ) {
+        tempEdge = new Edge(neutral_edge_row, neutral_edge_col,neutral_edge);    // this is correct although names say otherwise
+        picked = true;
+        System.out.println(" debug75");
+        // fool proof
+    }
+    //////System.out.println("the amount of boxes on the board is "+how_many_boxes);
+   
+    ////System.out.println("chain amount is "+chainAmount+" and pchainAmount is "+pchainAmount);
+    ////System.out.println("My Prediction : my score is "+my_score+" and his score is "+his_score);
+    
+    return tempEdge;
+   
+} // nevex_computing end
+
+
+            /********************************************/
+            /*        CHAIN HUNTER ALGORITHM            */
+            /********************************************/
+
+
+    public void huntChains(int c, int r) throws RemoteException {
+   
+
+
+        //////System.out.println("-------IM IN THE chainhunter----------");
+
+         int edgeCount = 0, unselect =0, i,j,k;                       //i = column, j = row, k = edge
+         limit = column*row; pchainAmount = 0; chainAmount = 0;                     //Assigning varriables
+         chainData = new Edge[limit+1][limit+1]; pchainData = new Edge[limit+1][limit+1];
+         
+         
+         for(int a=0;a<limit;a++) {
+             for(int b=0;b<limit;b++) {
+                 chainData[a][b] = new Edge(limit+1,limit+1,0);      //Assigns a value that will never be used to each array of the data arrays
+                 pchainData[a][b] = new Edge(limit+1,limit+1,0);     //Basically acts like a NULL value
+             }
+         }
+         my_limit = limit;
+          for(i=c;i<column;i++) {
+                for(j=r;j<row;j++) {                                //Loop for searching board for chains
+                  for(k=0;k<4;k++) {
+                          if(viewBoard.isSelected(i,j,k) == true) {
+                              edgeCount++;                              //Determines how many edges in box 
+                          }
+                          else
+                              unselect = k;                         //Gives a name to the unselected edge
+                   }
+                   if(edgeCount == 3) {
+                      chainAmount++;                   //Finds beginning of chain and records its coords & edge
+                      //////System.out.println("Chainfound");
+                      boxCount = 1;
+                      chainData[chainAmount][boxCount] = new Edge(i,j,unselect);
+                      //////System.out.println("chainData for chain "+chainAmount+ " is "+chainData[chainAmount][boxCount].getCol()
+                      //+chainData[chainAmount][boxCount].getRow()+chainData[chainAmount][boxCount].getEdge());                        //Some of your code in here
+                      stalkChains(i, j, unselect);                  //Goes in to find the neighbouring box
+                   }
+                  edgeCount = 0;
+                }
+         }
+                  
+              for(i=c;i<column;i++) {
+                for(j=r;j<row;j++) {        //Counts board for pot. chain data
+                  for(k=0;k<4;k++) {
+                          if(viewBoard.isSelected(i,j,k) == true) {  //Determines amount of edges in box & chooses the unselected edge
+                              edgeCount++;                           //of a possible two
+                          }
+                          else
+                              unselect = k;
+                   }
+                  
+                   if(edgeCount == 2) {
+                      coordinates = new Edge(i,j,unselect);
+                      validCoord = true;                        //Finds a box for a pot. chain & checks that it isn't already recorded in chain data
+                      for(int a=0;a<limit;a++) {
+                          for(int b=0;b<limit;b++) {
+                              if(coordinates.getCol() == chainData[a][b].getCol() && coordinates.getRow() == chainData[a][b].getRow()) {
+                                    validCoord = false;
+                              }
+                          }
+                      }
+                      for(int a=0;a<limit;a++) {
+                          for(int b=0;b<limit;b++) {            //Checks that the box isn't already recorded in pot. chain data
+                              if(coordinates.getCol() == pchainData[a][b].getCol() && coordinates.getRow() == pchainData[a][b].getRow()) {
+                                    validCoord = false;
+                              }
+                          }
+                      }
+                      if(validCoord == true) {
+                                        pchainAmount++;
+                                        is_it_potential = 1;
+                                        loopChainData = new Edge(i,j,unselect);
+                                       // ////System.out.println("pot. Chainfound");
+                                        loopChainData = new Edge(i,j,unselect);     //If box isn't already recorded goes on to check it's neighbouring box
+                                        stalkChains(i, j, unselect);
+                                        validCoord = false;
+                      }
+                   }
+                   validCoord = false;
+                   edgeCount = 0;
+             }
+         }
+         for(int a=0;a<limit;a++) {
+            for(int b=0;b<limit;b++) {
+                if(chainData[a][b].getCol() != limit+1) {
+                //////System.out.println("chain data for chain "+a+" box "+b+" is "+chainData[a][b].getCol()
+                //+chainData[a][b].getRow()+chainData[a][b].getEdge());
+                }
+                
+            } 
+         }
+         for(int a=0;a<limit;a++) {
+            for(int b=0;b<limit;b++) {
+                if(pchainData[a][b].getCol() != limit+1) {
+                //////System.out.println("pot. chain data for pot. chain "+a+" box "+b+" is "+pchainData[a][b].getCol()
+                //+pchainData[a][b].getRow()+pchainData[a][b].getEdge());
+                }
+                
+            } 
+         }
+         //regurgatateChains();
+    }
+
+    public void eatChains(int cols, int rows, int prevEdge) throws RemoteException {
+          int nextEdge = 4, edgeAmount = 0, loopParameter = 1;
+          coordinates = new Edge(cols, rows, prevEdge);
+          //////System.out.println("determining info. about box");
+
+          for(int k=0;k<4;k++) {
+              // IT DOES NOT LIKE THIS LINE MICK I think - it might be a box type chain think (i.e. a circle)
+              if(viewBoard.isSelected(cols,rows,k) == true) {  //Determines amount of edges in the current box
+                  edgeAmount++;
+              }
+          }
+
+          for(int k=0;k<4;k++) {
+              if(edgeAmount == 2 && k != prevEdge && viewBoard.isSelected(cols,rows,k) == false) {
+                   nextEdge = k;                                //Gets the next unselected edge of that box
+              }
+          }
+          //////System.out.println("noParameters = "+noParameters);
+          
+          if((coordinates.getCol() == loopChainData.getCol() && coordinates.getRow() == loopChainData.getRow() 
+          && is_it_potential == loopParameter) || (noParameters == true)) {
+              is_it_potential = 2;
+              loopParameter = 2;
+              noParameters = true;
+              //////System.out.println("in a looped pot. chain");
+              //////System.out.println("noParameters = "+noParameters);
+                      for(int a=0;a<limit;a++) {
+                          for(int b=0;b<limit;b++) {                         //This function sorts out when the pot. chain goes in to loop
+                              if(coordinates.getCol() == pchainData[a][b].getCol() && coordinates.getRow() == pchainData[a][b].getRow()) {
+                                  //////System.out.println("looped chain turned on");
+                                  //////System.out.println("I AM THE BEST PROGRAMMER IN THE WORLD!!!!!!!!!!!");
+                                    loopChain = true;
+                              }
+                          }
+                      }
+          }
+
+
+          if(edgeAmount == 2 && loopChain == false)  {
+              
+
+                if(boxCount >= 1) {
+                    boxCount++;                                 //Records coordinates of the current box if in a chain
+                    chainData[chainAmount][boxCount] = new Edge(cols,rows,nextEdge);
+                    //////System.out.println("chainData for chain "+chainAmount+ " is "+chainData[chainAmount][boxCount].getCol()
+                    //+chainData[chainAmount][boxCount].getRow()+chainData[chainAmount][boxCount].getEdge());
+                }
+                else if(is_it_potential == 2) {
+                    pboxCount++;                    //Records coordinates of the current box if in pot. chain
+                    pchainData[pchainAmount][pboxCount] = new Edge(cols,rows,nextEdge);
+                    //////System.out.println("pot. chainData for pot. chain "+pchainAmount+ " box "+pboxCount+" is "+pchainData[pchainAmount][pboxCount].getCol()
+                    //+pchainData[pchainAmount][pboxCount].getRow()+pchainData[pchainAmount][pboxCount].getEdge());
+                }
+                stalkChains(cols, rows, nextEdge);              //Goes on to check next box
+          }
+
+          else if(is_it_potential == 1)  {
+                is_it_potential++;
+                //////System.out.println("beginning of pot. chain found");//Determines if the box is the start of a pot. chain
+                loopChain = false;
+                stalkChains(cols, rows, prevEdge);
+          }
+          else if(is_it_potential == 2) {
+                is_it_potential = 0;
+                //////System.out.println("end of pot. chain");
+                loopChain = false;
+                noParameters = false;
+                loopParameter = 1;
+                pboxCount = 0;                              //Determines if the box is the end of a pot. chain
+                return;
+          }
+          else 
+                 //////System.out.println("end of chain");
+                 boxCount=0;                                //Box is end of a chain
+                 return;
+}
+          
+    public void stalkChains(int cols, int rows, int nextEdge) throws RemoteException {
+        loopChain = false;
+        //////System.out.println("going on to check neighbouring box");
+        
+              /* NORTH SEARCH */
+              
+              if( nextEdge == Edge.NORTH) {
+                if(rows > 0) {
+                  rows--;                       //If box has north edge unselected, as long a it's not in row zero, neighbouring north box is selected 
+                  eatChains(cols, rows, 2);
+                }
+                else if(is_it_potential == 1) {
+                  is_it_potential = 2;          //Determines if the box is start of a pot. chain & sends it back to get it's neighbour
+                  eatChains(cols, rows, 0);
+                }
+                else {
+                  boxCount=0;                      //box is end of a chain so terminates and resets all necessary variables
+                  pboxCount = 0;
+                  is_it_potential = 0;
+                  return;
+                }
+              }
+
+              /*EAST SEARCH*/
+
+              if( nextEdge == Edge.EAST) {
+                if(cols < column-1) {
+                  cols++;
+                  eatChains(cols, rows, 3);
+                }
+                else if(is_it_potential == 1) {
+                  is_it_potential = 2;
+                  eatChains(cols, rows, 1);
+                }
+                else {
+                  boxCount=0;
+                  pboxCount = 0;
+                  is_it_potential = 0;
+                  return;
+                }
+              }
+              
+              /*SOUTH SEARCH*/
+
+              if( nextEdge == Edge.SOUTH) {
+                if(rows < row-1) {
+                  rows++;                               //This search algorithm does the same as above search except with different edge & end column or row
+                  eatChains(cols, rows,0);
+                }
+                else if(is_it_potential == 1) {
+                  is_it_potential = 2;
+                  eatChains(cols, rows,2);
+                }
+                else {
+                  boxCount=0;
+                  pboxCount = 0;
+                  is_it_potential = 0;
+                  return;
+                }
+              }
+              
+              /*WEST SEARCH*/
+              
+              if( nextEdge == Edge.WEST) {
+                if(cols > 0) {
+                  cols--;
+                  eatChains(cols, rows, 1);
+                }
+                else if(is_it_potential == 1) {
+                  is_it_potential = 2;
+                  eatChains(cols, rows, 3);
+                }
+                else {
+                  boxCount=0;
+                  pboxCount = 0;
+                  is_it_potential = 0;
+                return;
+                }
+              }
+}
+    //Following method isn't used just ignore it
+    public void regurgatateChains() throws RemoteException {
+
+       // ////System.out.println("Im in");
+        
+        int next = 0, limit = (column*row), cols, rows, edges;
+        //tempChainData = new Edge[limit+1][limit+1];
+        
+        for(int x=0;x<(column*row);x++) {
+            for(int y=0;y<(column*row);y++) {
+                if(chainData[x][y].getCol() == limit+1 && chainData[x][y].getRow() == limit+1) {
+                    //////System.out.println("in here aswell");
+                    //tempChainData[x][y] = chainData[x][y];
+               
+                for(int chain=next;chain<(column*row);chain++) {
+                    for(int box=next;box<(column*row);box++) {
+                        if(chainData[chain][box].getCol() != limit+1 && chainData[chain][box].getRow() != limit+1) {
+                        //////System.out.println("and here");
+                        cols = chainData[x][y].getCol();
+                        rows = chainData[x][y].getRow();
+                        edges = chainData[x][y].getEdge();
+                        //tempChainData[x][y] = new Edge(cols, rows, edges);
+                       // chainData[x][y] = tempChainData[x][y];
+
+                        next++;
+                        }
+                        }
+                    }
+                }
+            }
+        }
+        
+       for(int i=0;i<(column*row);i++) {
+            for(int j=0;j<(column*row);j++) {
+                //////System.out.println("sorted chain data is"+chainData[i][j].getCol()+chainData[i][j].getRow()+chainData[i][j].getEdge());
+            } 
+       }
+    }
+}

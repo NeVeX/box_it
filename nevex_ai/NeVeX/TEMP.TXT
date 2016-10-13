@@ -1,0 +1,516 @@
+
+/**
+ *
+ *
+ * @ aMarXproduction
+ *
+ *
+ *
+ * presents The NeVeX Experience
+ *
+ *
+ *
+ */
+
+import java.awt.event.*;
+import java.rmi.RemoteException;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import java.io.File;
+import java.lang.*;
+
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.DataLine;
+
+
+public class NeVeX extends View implements Player {
+    private Object lock = new Object();
+    private Edge edge;
+    boolean never_search_neutral_again = false;
+    
+    void setGo(Boolean go) {
+	try{   
+	    if(go)
+		status = "The NeVeX Engine Is Computing....    ";
+	    else
+		status = "                         ";
+	    int scores[] = viewBoard.getScore();
+	    score = "Player 1: "+scores[0]+"    Player 2: "+scores[1];
+	}
+	catch (RemoteException ex) {
+            ex.printStackTrace();
+        }
+        repaint();
+    }
+    
+public void setBoard(RmtBoard b) throws RemoteException {
+        showBoard(b);
+        JFrame frame = new JFrame();
+        frame.setTitle("The NeVeX Experience");
+        frame.add(this);
+        frame.pack();
+        frame.setVisible(true);
+        
+    }
+    
+public void update() throws RemoteException {
+            this.update(null, null);
+    }
+    
+public Edge pickEdge() throws RemoteException {
+        Edge tempEdge = null;
+        setGo(true);
+        
+        while(tempEdge == null) {   
+                  tempEdge = NeVeX_Computing();
+        }
+        
+        setGo(false);
+        return tempEdge;
+}
+        
+private Edge NeVeX_Computing() throws RemoteException {
+        String output = "";
+	    Edge tempEdge = null;
+            int i;
+            int my_col,my_row;
+            int box_edges, above_box_edges, below_box_edges, left_box_edges, right_box_edges;
+            boolean box_edge[][][] = new boolean[column][row][4];
+            //int neutral_edge[][][] = new int [column][row][1];
+            boolean neutral_edge_exists = false;
+            int neutral_edge_row = 0, neutral_edge_col = 0, neutral_edge = 0;
+            int start_col, start_row;
+            boolean proceed = true;
+            boolean wrong_edge = true;
+            int rand_col = 0, rand_row = 0, rand_edge = 0;
+            int seed = 976, search_loop;
+            int delete = 10;
+
+            
+            int potential_chain[][] = new int[delete][delete];
+            int chain[][] = new int[delete][delete];
+            boolean is_there_chain = false;
+            boolean is_there_potential_chain = false;
+            int smallest_potential = 0, potential_chain_use = 0, temp_smallest = 0;
+            int smallest_chain = 0, temp_smallest_chain = 0, chain_use = 0;
+            
+            
+            // call mick's chain hunter here
+            System.out.println("-------going into chainhunter");
+            //new ChainHunter(); 
+             huntChains(0,0);
+            System.out.println("-------coming out of chainhunter");
+            // and then access his fields ??????
+            
+            
+           // the sound for selecting edges 
+          /*  try{      
+		AudioInputStream stream = AudioSystem.getAudioInputStream(new File("c:\\test1.wav"));      
+		AudioFormat format = stream.getFormat();      
+		DataLine.Info info = new DataLine.Info(Clip.class, stream.getFormat());      
+		Clip clip = (Clip) AudioSystem.getLine(info);         
+		clip.open(stream);      
+		clip.start();
+	} catch (Exception e)
+	{      
+	 	e.printStackTrace();    
+	}  
+        try {
+            //Thread.sleep(3000);
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
+        }
+           */
+                
+            
+        // THE NEUTRAL EDGE CASE:
+            
+           start_col = (seed * (int) (Math.random()*seed)) % row;
+           start_row = (seed * (int) (Math.random()*seed)) % column;
+            
+    if ( never_search_neutral_again == false ) {
+       loop_edge_search: for (search_loop =0; search_loop < 2; search_loop++) {
+           for ( my_col = start_col; my_col < row; my_col++) { // row first
+                for ( my_row = start_row; my_row < column; my_row++) {
+                    
+                    box_edges=0; above_box_edges=0; below_box_edges=0; left_box_edges=0; right_box_edges=0;
+                    
+                    if (!viewBoard.isSelected(my_row, my_col, 0)) {
+                        //System.out.println("this box has north edge not selected");
+                        box_edges++;
+                    }
+                    if (!viewBoard.isSelected(my_row, my_col, 1)) {
+                         //System.out.println("this box has EAST edge not selected");
+                        //box_edge[my_row][my_col][1] = false;
+                        box_edges++;
+                    }
+                    if (!viewBoard.isSelected(my_row, my_col, 2)) {
+                         //System.out.println("this box has SOUTH edge not selected");
+                        //box_edge[my_row][my_col][2] = false;
+                        box_edges++;
+                    }
+                    if (!viewBoard.isSelected(my_row, my_col, 3)) {
+                         //System.out.println("this box has WEST edge not selected");
+                        //box_edge[my_row][my_col][3] = false;
+                        box_edges++;
+                    }
+
+                             
+                    if (box_edges >= 3) {  // box is good, but check neighbouring boxes
+                        
+                        if (my_col > 0) { // top of box
+                            if ((viewBoard.isSelected(my_row, my_col, 0))) { // obviously need to check
+                                    above_box_edges = 0;
+                            }
+                            else {
+                                if (!viewBoard.isSelected(my_row, my_col-1, 0)) {
+                                    above_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row, my_col-1, 1)) {
+                                    above_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row, my_col-1, 2)) {
+                                    above_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row, my_col-1, 3)) {
+                                    above_box_edges++;
+                                }
+                            }
+                        }
+                        if (my_row < row - 1) { // east side of board
+                            if ((viewBoard.isSelected(my_row, my_col, 1))) { // obviously need to check
+                                    right_box_edges = 0;
+                            }
+                            else {
+                                if (!viewBoard.isSelected(my_row+1, my_col, 0)) {
+                                    right_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row+1, my_col, 1)) {
+                                    right_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row+1, my_col, 2)) {
+                                    right_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row+1, my_col, 3)) {
+                                    right_box_edges++;
+                                }
+                           }
+                        }
+                        
+                        if (my_col < column - 1) { // very bottom of board
+                            if ((viewBoard.isSelected(my_row, my_col, 2))) { // obviously need to check
+                                    below_box_edges = 0;
+                            }
+                            else {
+                                if (!viewBoard.isSelected(my_row, my_col+1, 0)) {
+                                    below_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row, my_col+1, 1)) {
+                                    below_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row, my_col+1, 2)) {
+                                    below_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row, my_col+1, 3)) {
+                                    below_box_edges++;
+                                }
+                            }
+                        }
+                         
+                        if (my_row > 0) { // west side
+                            if ((viewBoard.isSelected(my_row, my_col, 3))) { // obviously need to check
+                                    left_box_edges = 0;
+                            }
+                            else {
+                                if (!viewBoard.isSelected(my_row-1, my_col, 0)) {
+                                    left_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row-1, my_col, 1)) {
+                                    left_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row-1, my_col, 2)) {
+                                    left_box_edges++;
+                                }
+                                if (!viewBoard.isSelected(my_row-1, my_col, 3)) {
+                                    left_box_edges++;
+                                }
+                            }
+                        }
+                    }
+                        if ( above_box_edges >= 3 || (box_edges >= 3 && my_col == 0 && (!viewBoard.isSelected(my_row, my_col, 0)))) {  //north edge can be selected
+                            neutral_edge_row = my_row;
+                            neutral_edge_col = my_col;
+                            neutral_edge = 0;
+                            neutral_edge_exists = true;
+                            output += "\n "+my_row+","+my_col+", 0";
+                            break loop_edge_search;
+                        }
+                        else if ( right_box_edges >= 3 || (box_edges >= 3 && my_row == (column-1) && (!viewBoard.isSelected(my_row, my_col, 1)))) {  //right edge can be selected
+                            neutral_edge_row = my_row;
+                            neutral_edge_col = my_col;
+                            neutral_edge = 1;
+                            output += "\n "+my_row+","+my_col+", 1";
+                            neutral_edge_exists = true;
+                        break loop_edge_search;
+                        }
+                        else if ( below_box_edges >= 3 || (box_edges >= 3 && my_col == (row-1) && (!viewBoard.isSelected(my_row, my_col, 2)))) {  //bottom edge can be selected
+                            neutral_edge_row = my_row;
+                            neutral_edge_col = my_col;
+                            neutral_edge = 2;
+                            output += "\n "+my_row+","+my_col+", 2";
+                            neutral_edge_exists = true;
+                        break loop_edge_search;
+                        } 
+                        else if ( left_box_edges >= 3 || (box_edges >= 3 && my_row == 0 && (!viewBoard.isSelected(my_row, my_col, 3)))) {  //left edge can be selected
+                            neutral_edge_row = my_row;
+                            neutral_edge_col = my_col;
+                            neutral_edge = 3;
+                            output += "\n "+my_row+","+my_col+", 3";
+                            neutral_edge_exists = true;
+                        break loop_edge_search;
+                        }
+                    
+                        
+                        //System.out.println("row = "+my_row+ " and col is "+my_col); 
+                }                
+           }
+
+           // if random edge search didnt work restart loop with original values
+          // System.out.println("--------RANDOM DIDN'T WORK -------");
+           start_col = 0; 
+           start_row = 0;
+       }
+    }
+     // neutral edge is either found or doesn't exist be this stage
+    
+   if ( !neutral_edge_exists ) {
+               output += "\n----------- Neutral Does not exist anymore-------";
+         this.never_search_neutral_again = true;
+        }
+   else {
+         output += "\n ----------- Neutral Edges Still Exist and I have One--------------";
+   }
+    // no chains or potential chains       
+    if (is_there_chain == false && is_there_potential_chain == false) {
+            tempEdge = new Edge(neutral_edge_row, neutral_edge_col, neutral_edge);
+            output += "\n ----------- No potential or full chains, selecting neutral edge --------------";
+            
+            
+    }       
+     // chains and potential chains      
+    else if (is_there_chain == true && is_there_potential_chain == true) {
+        if ( neutral_edge_exists == true) {
+            tempEdge = new Edge(chain[0][1], chain[0][2], chain[0][3]);
+            output += "\n ----------- potential and full chains, selecting neutral --------------";
+        }
+        else { // get all chains till the last one where we check if the p.chain is really small
+            output += "\n ----------- potential or full chains, getting all chains stating with smallest --------------";
+            temp_smallest_chain = chain[0][0];
+            chain_use = 0;
+            
+            for ( i = 0; i < 10; i++) {
+                smallest_chain = chain[i][0];
+                if(smallest_chain < temp_smallest_chain) {
+                    chain_use = i;
+                }
+            }
+            // check if we are in last chain i.e chain[] is not > 0
+            
+            if (chain[0][0] < 1)  { // we are in last chain
+                output += "\n ----------- we're in the last chain --------------";
+                temp_smallest = potential_chain[0][0]; // first p.chain
+                potential_chain_use = 0;    
+                
+             for( i = 1; i < 10; i++) {
+               smallest_potential = potential_chain[i][0];
+                if (smallest_potential < temp_smallest) {
+                    potential_chain_use = i;
+                }
+             }
+             if (potential_chain[potential_chain_use][0] < 3)  { // only two boxes to scarafice
+                  output += "\n ----------- scarifying small chain --------------";  
+                  tempEdge = new Edge(chain[chain_use][1], chain[chain_use][2], chain[chain_use][3]);
+                 
+             }
+              else if(chain.length < 8) {    // double cross move here
+                    output += "\n ----------- double crossing --------------";
+                  tempEdge = new Edge(chain[chain_use][4], chain[chain_use][5], chain[chain_use][6]);
+              }
+            }
+            else {
+                output += "\n ----------- selecting edge in chain --------------";
+                tempEdge = new Edge(chain[chain_use][1], chain[chain_use][2], chain[chain_use][3]);
+            }
+        }
+    }
+   // only potential chain
+    else if (is_there_chain == false && is_there_potential_chain == true)  { // no chain but only p.chains
+            output += "\n ----------- only potential chains here --------------";
+        if (neutral_edge_exists == true)  {   // neutral edgee exists
+                output += "\n ----------- selecting neutral edge --------------";
+            tempEdge = new Edge(neutral_edge_row, neutral_edge_col, neutral_edge); 
+        }
+        else {  // find smallest potential chain and give it away
+                output += "\n ----------- finding smallest chain to give away --------------";
+            temp_smallest = potential_chain[0][0]; // first p.chain
+            potential_chain_use = 0;
+                    
+            for( i = 1; i < 10; i++) {
+                smallest_potential = potential_chain[i][0];
+                if (smallest_potential < temp_smallest) {
+                    potential_chain_use = i;
+                }
+            }
+            tempEdge = new Edge(potential_chain[potential_chain_use][1], potential_chain[potential_chain_use][2], potential_chain[potential_chain_use][3]);  
+        }
+    }
+     // only exists a chain      
+    else if (is_there_chain == true && is_there_potential_chain == false) {
+       output += "\n ----------- only chains exist here --------------";
+        if ( neutral_edge_exists == true) {
+           output += "\n ----------- selecting all chains --------------";
+            // select all the chains
+            tempEdge = new Edge(chain[0][1], chain[0][2], chain[0][3]);
+        }
+        else { //select chains starting with smallest
+           output += "\n ----------- picking chains with smallest size first preparing to Double Cross --------------";
+            temp_smallest_chain = chain[0][0];
+            chain_use = 0;
+            for ( i = 0; i < 10; i++) {
+                smallest_chain = chain[i][0];
+                if(smallest_chain < temp_smallest_chain) {
+                    chain_use = i;
+                }
+            }
+            if(chain.length < 8 ){    // double cross move here
+                output += "\n ----------- double crossing here --------------";
+                  tempEdge = new Edge(chain[chain_use][4], chain[chain_use][5], chain[chain_use][6]);
+            
+              }
+            else tempEdge = new Edge(chain[chain_use][1], chain[chain_use][2], chain[chain_use][3]);   
+        }
+               
+    }
+     output += "\n RETURNED AN EDGE TO SYSTEM";
+     
+    System.out.println(output);
+    return tempEdge;
+ } // nevex_computing end
+
+
+
+public void huntChains(int c, int r) throws RemoteException {
+    
+   System.out.println("-------IM IN THE chainhunter----------");
+   
+   int edgeCount = 0;
+   int i,j,k;
+   int use_edge = 0;
+   int chain = 0;
+   int chains[][] = null;
+
+       for(i=c;i<column;i++) {
+           for(j=r;j<row;j++) {
+               for(k=0;k<4;k++) {
+                   System.out.println("hunting\n");
+                   System.out.println("Counting box "+j+" "+i+" "+k+"\n");
+                   if((viewBoard.isSelected(j,i,k)) == true) {
+                       System.out.println("Counting box "+j+i+"\n");
+                       edgeCount++;
+                   }
+                   else {
+                   System.out.println("No Edge\n");
+                   use_edge = k;
+                   }
+                   if(edgeCount == 3) {
+                       System.out.println("Chain found\n");
+                       chains[chain][0] = 0;
+                       chains[chain][1] = use_edge;
+                       followChain(j, i, use_edge);
+                       }
+
+               }
+               edgeCount = 0;
+               chain++;
+           }
+       }
+   }
+
+   public void followChain(int c, int r, int e) throws RemoteException {
+
+       if(e == Edge.NORTH && e > 0){
+           r--;
+       checkNeighbour(c,r,e);
+       }
+       if(e == Edge.EAST && c < column){
+           c++;
+       checkNeighbour(c,r,e);
+       }
+       if(e == Edge.SOUTH && r < row){
+           r++;
+       checkNeighbour(c,r,e);
+       }
+       if(e == Edge.WEST && c > 0){
+           c--;
+       checkNeighbour(c,r,e);
+       }
+       else
+           System.out.println("Chain Terminated\n");
+
+
+       }
+   public boolean checkNeighbour(int columns, int rows, int noEdge) throws RemoteException {
+       int edgeAmount = 0, otherEdge = 0;
+       
+       for(int k=0;k<4;k++) {
+           if(viewBoard.isSelected(columns,rows,k) == true) {
+               edgeAmount++;
+           }
+           else
+               otherEdge = k;
+       }
+       if(edgeAmount == 0)
+          System.out.println("Chain Terminated\n");
+
+           if((viewBoard.isSelected(columns,rows,otherEdge)== false) && (otherEdge != noEdge) && (edgeAmount == 2)) {
+
+               if(otherEdge == Edge.NORTH && rows > 0) {
+                   rows--;
+                   checkNeighbour(columns, rows, otherEdge);
+                   return true;
+               }
+
+
+               if(otherEdge == Edge.EAST && columns < column-1) {
+                   columns++;
+                   checkNeighbour(columns, rows, otherEdge);
+                   return true;
+               }
+
+               if(otherEdge == Edge.SOUTH && rows < row-1) {
+                   rows++;
+                   checkNeighbour(columns, rows,otherEdge);
+                   return true;
+                   }
+               if(otherEdge == Edge.WEST && columns > 0) {
+                   columns--;
+                   checkNeighbour(columns, rows, otherEdge);
+                   return true;
+               }
+               else
+                   System.out.println("Chain terminated\n");
+                   return false;
+           }
+       System.out.println("Chain Terminated");
+       return false;
+
+   }
+
+
+
+}
+    
+
